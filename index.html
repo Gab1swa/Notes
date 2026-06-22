@@ -1,0 +1,257 @@
+<div id="app">
+  <div class="bg-halos"></div>
+
+  <aside class="sidebar glass">
+    <div class="sidebar-head">
+      <h1>Mes notes</h1>
+      <button id="newBtn" class="new-btn" title="Nouvelle note">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </button>
+    </div>
+    <div id="noteList" class="note-list"></div>
+  </aside>
+
+  <main class="editor glass">
+    <div id="emptyState" class="empty-state">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+      <p>Crée une note pour commencer à écrire</p>
+      <button id="emptyNewBtn" class="ghost-btn">Nouvelle note</button>
+    </div>
+
+    <div id="editorActive" class="editor-active" style="display:none;">
+      <input id="titleInput" class="title-input" type="text" placeholder="Titre de la note" />
+      <textarea id="bodyInput" class="body-input" placeholder="Écris ta note ici..."></textarea>
+      <div class="editor-foot">
+        <span id="savedStatus" class="saved-status"></span>
+        <button id="deleteBtn" class="delete-btn">Supprimer</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Montserrat',sans-serif; }
+html, body { height:100%; background:#050505; }
+
+#app {
+  position:relative;
+  display:flex;
+  gap:20px;
+  width:100%;
+  height:100vh;
+  min-height:540px;
+  padding:22px;
+  background:#050505;
+  overflow:hidden;
+  color:#fff;
+}
+
+.bg-halos {
+  position:absolute; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(480px circle at 12% 18%, rgba(255,255,255,0.06), transparent 60%),
+    radial-gradient(600px circle at 88% 82%, rgba(255,255,255,0.045), transparent 60%),
+    radial-gradient(420px circle at 70% 8%, rgba(255,255,255,0.03), transparent 60%);
+}
+
+.glass {
+  position:relative; z-index:1;
+  background:rgba(255,255,255,0.04);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:20px;
+  box-shadow:0 18px 50px rgba(0,0,0,0.55);
+}
+
+/* Sidebar */
+.sidebar {
+  width:280px; flex:0 0 280px;
+  display:flex; flex-direction:column;
+  min-height:0;            /* permet au scroll interne de fonctionner */
+  padding:20px;
+}
+.sidebar-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex:0 0 auto; }
+.sidebar-head h1 { font-size:18px; font-weight:600; letter-spacing:.3px; }
+
+.new-btn {
+  display:flex; align-items:center; justify-content:center;
+  width:38px; height:38px; border-radius:12px; cursor:pointer; color:#fff; flex:0 0 auto;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.10);
+  transition:transform .35s cubic-bezier(0.25,0.8,0.25,1), box-shadow .35s cubic-bezier(0.25,0.8,0.25,1), background .35s cubic-bezier(0.25,0.8,0.25,1);
+}
+.new-btn:hover { transform:translateY(-2px); background:rgba(255,255,255,0.10); box-shadow:0 0 18px rgba(255,255,255,0.18); }
+.new-btn:hover svg { transform:scale(1.15); }
+.new-btn svg { transition:transform .35s cubic-bezier(0.25,0.8,0.25,1); }
+
+.note-list {
+  flex:1 1 auto; min-height:0;   /* clé du bug d'affichage */
+  overflow-y:auto;
+  display:flex; flex-direction:column; gap:10px; padding-right:6px;
+}
+.note-list::-webkit-scrollbar { width:7px; }
+.note-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:4px; }
+.note-list::-webkit-scrollbar-track { background:transparent; }
+
+.note-item {
+  padding:14px 15px; border-radius:16px; cursor:pointer; flex:0 0 auto;
+  background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08);
+  transition:transform .35s cubic-bezier(0.25,0.8,0.25,1), box-shadow .35s cubic-bezier(0.25,0.8,0.25,1), background .35s cubic-bezier(0.25,0.8,0.25,1);
+}
+.note-item:hover { transform:translateY(-3px); background:rgba(255,255,255,0.07); box-shadow:0 10px 26px rgba(0,0,0,0.5), 0 0 16px rgba(255,255,255,0.10); }
+.note-item.active { background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,0.22); }
+.note-item .ni-title { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.note-item .ni-preview { font-size:12px; color:rgba(255,255,255,0.45); margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:300; }
+
+/* Editor */
+.editor { flex:1 1 auto; min-width:0; min-height:0; padding:30px 36px; display:flex; }
+.empty-state { margin:auto; display:flex; flex-direction:column; align-items:center; gap:16px; color:rgba(255,255,255,0.35); text-align:center; }
+.empty-state p { font-weight:300; font-size:14px; }
+
+.ghost-btn {
+  margin-top:6px; padding:11px 22px; border-radius:14px; cursor:pointer; color:#fff; font-size:13px; font-weight:500;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+  transition:transform .35s cubic-bezier(0.25,0.8,0.25,1), box-shadow .35s cubic-bezier(0.25,0.8,0.25,1), background .35s cubic-bezier(0.25,0.8,0.25,1);
+}
+.ghost-btn:hover { transform:translateY(-2px); background:rgba(255,255,255,0.10); box-shadow:0 0 18px rgba(255,255,255,0.18); }
+
+.editor-active { flex:1 1 auto; min-width:0; min-height:0; display:flex; flex-direction:column; width:100%; }
+.title-input {
+  background:transparent; border:none; outline:none; color:#fff; width:100%;
+  font-size:26px; font-weight:600; padding-bottom:16px; margin-bottom:16px;
+  border-bottom:1px solid rgba(255,255,255,0.10);
+}
+.title-input::placeholder { color:rgba(255,255,255,0.25); }
+
+.body-input {
+  flex:1 1 auto; min-height:0; width:100%;
+  background:transparent; border:none; outline:none; resize:none; color:rgba(255,255,255,0.85);
+  font-size:15.5px; line-height:1.75; font-weight:300;
+}
+.body-input::placeholder { color:rgba(255,255,255,0.22); }
+.body-input::-webkit-scrollbar { width:7px; }
+.body-input::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:4px; }
+
+.editor-foot { display:flex; align-items:center; justify-content:space-between; margin-top:18px; padding-top:18px; border-top:1px solid rgba(255,255,255,0.08); flex:0 0 auto; }
+.saved-status { font-size:12px; color:rgba(255,255,255,0.35); font-weight:300; }
+
+.delete-btn {
+  padding:9px 18px; border-radius:12px; cursor:pointer; color:rgba(255,255,255,0.6); font-size:12.5px; font-weight:500;
+  background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.10);
+  transition:transform .35s cubic-bezier(0.25,0.8,0.25,1), box-shadow .35s cubic-bezier(0.25,0.8,0.25,1), color .35s, background .35s;
+}
+.delete-btn:hover { transform:translateY(-2px); color:#fff; background:rgba(255,255,255,0.08); box-shadow:0 0 16px rgba(255,255,255,0.12); }
+
+/* Sécurité petits écrans */
+@media (max-width:720px){
+  #app { flex-direction:column; height:100vh; }
+  .sidebar { width:100%; flex:0 0 180px; }
+  .editor { padding:22px 20px; }
+}
+</style>
+
+<script>
+(function(){
+  const listEl = document.getElementById('noteList');
+  const emptyState = document.getElementById('emptyState');
+  const editorActive = document.getElementById('editorActive');
+  const titleInput = document.getElementById('titleInput');
+  const bodyInput = document.getElementById('bodyInput');
+  const savedStatus = document.getElementById('savedStatus');
+
+  let notes = [];
+  let activeId = null;
+  let saveTimer = null;
+
+  async function loadNotes(){
+    try {
+      const res = await window.storage.get('notes:index');
+      notes = res && res.value ? JSON.parse(res.value) : [];
+    } catch(e){ notes = []; }
+    renderList();
+    if(notes.length){ openNote(notes.slice().sort((a,b)=>b.updated-a.updated)[0].id); } else { showEmpty(); }
+  }
+
+  async function persist(){
+    try { await window.storage.set('notes:index', JSON.stringify(notes), false); }
+    catch(e){ console.error('Sauvegarde impossible', e); }
+  }
+
+  function renderList(){
+    listEl.innerHTML = '';
+    notes.slice().sort((a,b)=>b.updated-a.updated).forEach(n => {
+      const item = document.createElement('div');
+      item.className = 'note-item' + (n.id===activeId?' active':'');
+      const t = document.createElement('div'); t.className='ni-title';
+      t.textContent = n.title.trim() || 'Sans titre';
+      const p = document.createElement('div'); p.className='ni-preview';
+      p.textContent = n.body.trim() || 'Note vide';
+      item.appendChild(t); item.appendChild(p);
+      item.onclick = ()=> openNote(n.id);
+      listEl.appendChild(item);
+    });
+  }
+
+  function showEmpty(){
+    activeId = null;
+    emptyState.style.display = 'flex';
+    editorActive.style.display = 'none';
+    renderList();
+  }
+
+  function openNote(id){
+    const n = notes.find(x=>x.id===id);
+    if(!n) return;
+    activeId = id;
+    emptyState.style.display = 'none';
+    editorActive.style.display = 'flex';
+    titleInput.value = n.title;
+    bodyInput.value = n.body;
+    savedStatus.textContent = 'Sauvegardé';
+    renderList();
+  }
+
+  function newNote(){
+    const n = { id:'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+                title:'', body:'', updated:Date.now() };
+    notes.push(n);
+    persist();
+    openNote(n.id);
+    titleInput.focus();
+  }
+
+  function scheduleSave(){
+    if(!activeId) return;
+    savedStatus.textContent = 'Enregistrement…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async ()=>{
+      const n = notes.find(x=>x.id===activeId);
+      if(!n) return;
+      n.title = titleInput.value;
+      n.body = bodyInput.value;
+      n.updated = Date.now();
+      await persist();
+      savedStatus.textContent = 'Sauvegardé';
+      renderList();
+    }, 450);
+  }
+
+  async function deleteNote(){
+    if(!activeId) return;
+    notes = notes.filter(x=>x.id!==activeId);
+    await persist();
+    if(notes.length){ openNote(notes.slice().sort((a,b)=>b.updated-a.updated)[0].id); }
+    else { showEmpty(); }
+  }
+
+  document.getElementById('newBtn').onclick = newNote;
+  document.getElementById('emptyNewBtn').onclick = newNote;
+  document.getElementById('deleteBtn').onclick = deleteNote;
+  titleInput.addEventListener('input', scheduleSave);
+  bodyInput.addEventListener('input', scheduleSave);
+
+  loadNotes();
+})();
+</script>
