@@ -1,27 +1,24 @@
-
-
-Orbit planificateur · JSX
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar, CheckSquare, Target, Sun, BarChart2, Plus, X, Clock,
   ChevronLeft, ChevronRight, Trash2, Pencil, Check, TrendingUp,
   Flag, ChevronDown, ChevronUp, CalendarClock,
 } from 'lucide-react';
- 
+
 /* ----------------------------------------------------------------------- */
 /* Constantes & utilitaires                                                */
 /* ----------------------------------------------------------------------- */
- 
+
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
   "août", "septembre", "octobre", "novembre", "décembre"];
 const DAYS_LONG = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
- 
+
 const pad = (n) => String(n).padStart(2, "0");
 const toISO = (y, m, d) => y + "-" + pad(m + 1) + "-" + pad(d);
 const todayISO = () => { const d = new Date(); return toISO(d.getFullYear(), d.getMonth(), d.getDate()); };
 const uid = () => Math.random().toString(36).slice(2, 10);
- 
+
 function addDays(iso, n) {
   const d = new Date(iso + "T00:00:00");
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
@@ -71,15 +68,15 @@ function greeting() {
   if (h < 18) return "Bon après-midi";
   return "Bonsoir";
 }
- 
+
 /* ----------------------------------------------------------------------- */
 /* Petits composants                                                       */
 /* ----------------------------------------------------------------------- */
- 
+
 function Dot({ p }) {
   return <span className={"pdot pdot-" + p} />;
 }
- 
+
 function Overlay({ onClose, children }) {
   return (
     <div className="overlay" onMouseDown={onClose}>
@@ -87,7 +84,7 @@ function Overlay({ onClose, children }) {
     </div>
   );
 }
- 
+
 function Empty({ icon: Icon, title, sub }) {
   return (
     <div className="empty">
@@ -97,7 +94,7 @@ function Empty({ icon: Icon, title, sub }) {
     </div>
   );
 }
- 
+
 function Section({ title, count, children }) {
   return (
     <div className="section">
@@ -109,7 +106,7 @@ function Section({ title, count, children }) {
     </div>
   );
 }
- 
+
 function TaskRow({ task, onToggle, onEdit, showDate }) {
   return (
     <div className="task-row glass hoverable">
@@ -137,7 +134,7 @@ function TaskRow({ task, onToggle, onEdit, showDate }) {
     </div>
   );
 }
- 
+
 function Sidebar({ view, setView, badges }) {
   const items = [
     { id: "today", label: "Aujourd'hui", icon: Sun, badge: badges.today },
@@ -171,7 +168,7 @@ function Sidebar({ view, setView, badges }) {
     </aside>
   );
 }
- 
+
 function QuickAdd({ onAdd, placeholder }) {
   const [v, setV] = useState("");
   const submit = () => { const t = v.trim(); if (!t) return; onAdd(t); setV(""); };
@@ -189,11 +186,11 @@ function QuickAdd({ onAdd, placeholder }) {
     </div>
   );
 }
- 
+
 /* ----------------------------------------------------------------------- */
 /* Vues                                                                    */
 /* ----------------------------------------------------------------------- */
- 
+
 function CalendarView({ year, month, tasks, onPrev, onNext, onToday, onDay }) {
   const grid = useMemo(() => monthGrid(year, month), [year, month]);
   const byDate = useMemo(() => {
@@ -243,7 +240,7 @@ function CalendarView({ year, month, tasks, onPrev, onNext, onToday, onDay }) {
     </div>
   );
 }
- 
+
 function TodayView({ tasks, onToggle, onEdit, onQuickAdd }) {
   const ti = todayISO();
   const today = tasks.filter((t) => t.date === ti).sort(byTime);
@@ -282,7 +279,7 @@ function TodayView({ tasks, onToggle, onEdit, onQuickAdd }) {
     </div>
   );
 }
- 
+
 function TasksView({ tasks, onToggle, onEdit, onNew }) {
   const [filter, setFilter] = useState("all");
   const ti = todayISO();
@@ -323,7 +320,7 @@ function TasksView({ tasks, onToggle, onEdit, onNew }) {
     </div>
   );
 }
- 
+
 function GoalCard({ goal, tasks, onToggleMilestone, onToggleTask, onEdit, onDelete }) {
   const [open, setOpen] = useState(false);
   const ms = goal.milestones || [];
@@ -394,7 +391,7 @@ function GoalCard({ goal, tasks, onToggleMilestone, onToggleTask, onEdit, onDele
     </div>
   );
 }
- 
+
 function GoalsView({ goals, tasks, onToggleMilestone, onToggleTask, onEdit, onDelete, onNew }) {
   return (
     <div className="view">
@@ -420,7 +417,7 @@ function GoalsView({ goals, tasks, onToggleMilestone, onToggleTask, onEdit, onDe
     </div>
   );
 }
- 
+
 function OverviewView({ tasks, goals }) {
   const ti = todayISO();
   const week = weekISOs(ti);
@@ -434,13 +431,13 @@ function OverviewView({ tasks, goals }) {
     if (!ms.length) return true;
     return ms.filter((m) => m.done).length < ms.length;
   }).length;
- 
+
   const perDay = week.map((iso) => {
     const list = tasks.filter((t) => t.date === iso);
     return { iso, total: list.length, done: list.filter((t) => t.done).length };
   });
   const maxTotal = Math.max(1, ...perDay.map((d) => d.total));
- 
+
   const deadlines = [];
   for (const g of goals) {
     if (g.targetDate && daysUntil(g.targetDate) >= 0) {
@@ -454,14 +451,14 @@ function OverviewView({ tasks, goals }) {
   }
   deadlines.sort((a, b) => a.date.localeCompare(b.date));
   const topDeadlines = deadlines.slice(0, 5);
- 
+
   const stats = [
     { label: "Tâches aujourd'hui", value: todayDone + " / " + todayTasks.length, icon: Sun },
     { label: "Terminées cette semaine", value: weekDone, icon: CheckSquare },
     { label: "Taux de complétion", value: rate + "%", icon: TrendingUp },
     { label: "Objectifs actifs", value: activeGoals, icon: Target },
   ];
- 
+
   return (
     <div className="view">
       <h1 className="view-title">Vue d'ensemble</h1>
@@ -525,11 +522,11 @@ function OverviewView({ tasks, goals }) {
     </div>
   );
 }
- 
+
 /* ----------------------------------------------------------------------- */
 /* Modales                                                                 */
 /* ----------------------------------------------------------------------- */
- 
+
 function TaskModal({ initial, goals, onSave, onDelete, onClose }) {
   const editing = !!initial.id;
   const [title, setTitle] = useState(initial.title || "");
@@ -539,7 +536,7 @@ function TaskModal({ initial, goals, onSave, onDelete, onClose }) {
   const [category, setCategory] = useState(initial.category || "");
   const [goalId, setGoalId] = useState(initial.goalId || "");
   const [notes, setNotes] = useState(initial.notes || "");
- 
+
   const save = () => {
     const t = title.trim();
     if (!t) return;
@@ -554,7 +551,7 @@ function TaskModal({ initial, goals, onSave, onDelete, onClose }) {
       notes: notes.trim(),
     });
   };
- 
+
   return (
     <Overlay onClose={onClose}>
       <div className="modal-head">
@@ -620,7 +617,7 @@ function TaskModal({ initial, goals, onSave, onDelete, onClose }) {
     </Overlay>
   );
 }
- 
+
 function GoalModal({ initial, onSave, onDelete, onClose }) {
   const editing = !!initial.id;
   const [title, setTitle] = useState(initial.title || "");
@@ -628,7 +625,7 @@ function GoalModal({ initial, onSave, onDelete, onClose }) {
   const [description, setDescription] = useState(initial.description || "");
   const [milestones, setMilestones] = useState(initial.milestones ? initial.milestones.map((m) => ({ ...m })) : []);
   const [draft, setDraft] = useState("");
- 
+
   const addMs = () => {
     const t = draft.trim();
     if (!t) return;
@@ -636,13 +633,13 @@ function GoalModal({ initial, onSave, onDelete, onClose }) {
     setDraft("");
   };
   const removeMs = (id) => setMilestones((ms) => ms.filter((m) => m.id !== id));
- 
+
   const save = () => {
     const t = title.trim();
     if (!t) return;
     onSave({ ...initial, title: t, targetDate: targetDate || null, description: description.trim(), milestones });
   };
- 
+
   return (
     <Overlay onClose={onClose}>
       <div className="modal-head">
@@ -697,7 +694,7 @@ function GoalModal({ initial, onSave, onDelete, onClose }) {
     </Overlay>
   );
 }
- 
+
 function DayModal({ iso, tasks, onToggle, onEditTask, onQuickAdd, onClose }) {
   const list = tasks.filter((t) => t.date === iso).sort(byTime);
   return (
@@ -723,11 +720,11 @@ function DayModal({ iso, tasks, onToggle, onEditTask, onQuickAdd, onClose }) {
     </Overlay>
   );
 }
- 
+
 /* ----------------------------------------------------------------------- */
 /* Données d'exemple (premier lancement)                                   */
 /* ----------------------------------------------------------------------- */
- 
+
 function seed() {
   const ti = todayISO();
   const gSport = uid();
@@ -769,11 +766,11 @@ function seed() {
   ];
   return { tasks, goals };
 }
- 
+
 /* ----------------------------------------------------------------------- */
 /* Application                                                             */
 /* ----------------------------------------------------------------------- */
- 
+
 export default function App() {
   const now = new Date();
   const [view, setView] = useState("calendar");
@@ -785,7 +782,7 @@ export default function App() {
   const [taskModal, setTaskModal] = useState(null);
   const [goalModal, setGoalModal] = useState(null);
   const [dayModal, setDayModal] = useState(null);
- 
+
   // Police Montserrat (injection défensive)
   useEffect(() => {
     if (!document.getElementById("orbit-font")) {
@@ -796,7 +793,7 @@ export default function App() {
       document.head.appendChild(l);
     }
   }, []);
- 
+
   // Chargement depuis le stockage persistant
   useEffect(() => {
     let cancelled = false;
@@ -817,7 +814,7 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, []);
- 
+
   // Sauvegarde
   useEffect(() => {
     if (!loaded) return;
@@ -827,7 +824,7 @@ export default function App() {
     if (!loaded) return;
     (async () => { try { await window.storage.set("orbit:goals", JSON.stringify(goals)); } catch (e) {} })();
   }, [goals, loaded]);
- 
+
   // Opérations tâches
   const saveTask = (task) => {
     setTasks((prev) => {
@@ -843,7 +840,7 @@ export default function App() {
     setTasks((prev) => [...prev, { id: uid(), title, date: todayISO(), time: null, priority: "medium", category: "Général", done: false, goalId: null, notes: "", createdAt: Date.now() }]);
   const quickAddDate = (iso, title) =>
     setTasks((prev) => [...prev, { id: uid(), title, date: iso, time: null, priority: "medium", category: "Général", done: false, goalId: null, notes: "", createdAt: Date.now() }]);
- 
+
   // Opérations objectifs
   const saveGoal = (goal) => {
     setGoals((prev) => {
@@ -861,18 +858,18 @@ export default function App() {
   const toggleMilestone = (goalId, msId) =>
     setGoals((prev) => prev.map((g) =>
       g.id === goalId ? { ...g, milestones: (g.milestones || []).map((m) => (m.id === msId ? { ...m, done: !m.done } : m)) } : g));
- 
+
   // Navigation calendrier
   const prevMonth = () => setCalMonth((m) => { if (m === 0) { setCalYear((y) => y - 1); return 11; } return m - 1; });
   const nextMonth = () => setCalMonth((m) => { if (m === 11) { setCalYear((y) => y + 1); return 0; } return m + 1; });
   const goToday = () => { const d = new Date(); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); };
- 
+
   const badges = {
     today: tasks.filter((t) => t.date === todayISO() && !t.done).length || null,
     tasks: tasks.filter((t) => !t.done).length || null,
     goals: goals.length || null,
   };
- 
+
   return (
     <div className="planner-root">
       <style>{CSS}</style>
@@ -892,7 +889,7 @@ export default function App() {
         )}
         {view === "overview" && <OverviewView tasks={tasks} goals={goals} />}
       </main>
- 
+
       {taskModal && (
         <TaskModal
           key={taskModal.initial.id || "new"}
@@ -925,16 +922,16 @@ export default function App() {
     </div>
   );
 }
- 
+
 /* ----------------------------------------------------------------------- */
 /* Styles                                                                  */
 /* ----------------------------------------------------------------------- */
- 
+
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
- 
+
 * { box-sizing: border-box; }
- 
+
 .planner-root {
   --bz: cubic-bezier(0.25, 0.8, 0.25, 1);
   font-family: 'Montserrat', system-ui, sans-serif;
@@ -948,7 +945,7 @@ const CSS = `
     radial-gradient(540px circle at 78% 18%, rgba(255,255,255,0.035), transparent 60%);
   -webkit-font-smoothing: antialiased;
 }
- 
+
 .glass {
   background: rgba(255,255,255,0.04);
   backdrop-filter: blur(18px) saturate(120%);
@@ -957,7 +954,7 @@ const CSS = `
   border-radius: 20px;
   box-shadow: 0 24px 60px -28px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.05);
 }
- 
+
 .hoverable { transition: transform .45s var(--bz), box-shadow .45s var(--bz), border-color .45s var(--bz); }
 .hoverable:hover {
   transform: translateY(-4px);
@@ -966,10 +963,10 @@ const CSS = `
 }
 .hoverable:hover .nav-icon,
 .hoverable:hover .stat-icon { transform: scale(1.12); }
- 
+
 button { font-family: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid rgba(255,255,255,0.55); outline-offset: 2px; }
- 
+
 /* ---- Sidebar ---- */
 .sidebar {
   width: 248px;
@@ -996,7 +993,7 @@ button { font-family: inherit; cursor: pointer; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
 .brand-name { font-weight: 800; letter-spacing: 3px; font-size: 16px; }
 .brand-tag { font-size: 11px; color: rgba(255,255,255,0.42); letter-spacing: 0.5px; margin-top: 2px; }
- 
+
 .nav { display: flex; flex-direction: column; gap: 4px; }
 .nav-item {
   display: flex; align-items: center; gap: 12px;
@@ -1018,14 +1015,14 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85);
 }
 .nav-item.active .nav-badge { background: rgba(5,5,5,0.12); color: #050505; }
- 
+
 /* ---- Main ---- */
 .main { flex: 1; min-width: 0; padding: 30px 34px 60px; }
 .view { max-width: 1060px; animation: fadeUp .5s var(--bz); }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
- 
+
 .view-title { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; margin: 0 0 22px; }
- 
+
 /* ---- Buttons ---- */
 .btn {
   display: inline-flex; align-items: center; gap: 7px;
@@ -1043,7 +1040,7 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.75); border-color: rgba(255,255,255,0.14);
 }
 .btn-danger:hover { background: rgba(255,255,255,0.09); color: #fff; box-shadow: none; transform: translateY(-2px); }
- 
+
 .iconbtn {
   width: 38px; height: 38px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center;
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #e6e6e6;
@@ -1052,29 +1049,29 @@ button { font-family: inherit; cursor: pointer; }
 .iconbtn:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
 .iconbtn.ghosty { width: 32px; height: 32px; border-radius: 9px; background: transparent; border-color: transparent; color: rgba(255,255,255,0.5); }
 .iconbtn.ghosty:hover { background: rgba(255,255,255,0.08); color: #fff; transform: none; }
- 
+
 /* ---- QuickAdd ---- */
 .quickadd { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 16px; margin-bottom: 26px; }
 .qa-icon { color: rgba(255,255,255,0.45); flex-shrink: 0; }
 .qa-input { flex: 1; background: transparent; border: none; color: #fff; font-size: 14.5px; font-family: inherit; padding: 8px 0; }
 .qa-input::placeholder { color: rgba(255,255,255,0.35); }
 .qa-input:focus { outline: none; }
- 
+
 /* ---- Priority dots ---- */
 .pdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
 .pdot-high { background: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.85); }
 .pdot-medium { background: rgba(255,255,255,0.55); }
 .pdot-low { background: transparent; border: 1.5px solid rgba(255,255,255,0.4); }
- 
+
 /* ---- Calendar ---- */
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .cal-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin: 0; text-transform: capitalize; }
 .cal-year { color: rgba(255,255,255,0.4); font-weight: 400; }
 .cal-nav { display: flex; align-items: center; gap: 8px; }
- 
+
 .cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 10px; padding: 0 2px; }
 .cal-wd { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.38); text-align: left; padding-left: 4px; }
- 
+
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
 .day-cell {
   min-height: 116px; padding: 10px; border-radius: 16px; display: flex; flex-direction: column; gap: 7px;
@@ -1095,13 +1092,13 @@ button { font-family: inherit; cursor: pointer; }
 .chip.done .chip-text { text-decoration: line-through; }
 .chip-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255,255,255,0.85); }
 .more { font-size: 10.5px; color: rgba(255,255,255,0.45); padding-left: 4px; font-weight: 500; }
- 
+
 /* ---- Today hero ---- */
 .today-hero { margin-bottom: 24px; }
 .today-greet { font-size: 13px; color: rgba(255,255,255,0.45); letter-spacing: 0.5px; margin: 0 0 6px; font-weight: 500; }
 .today-date { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin: 0; text-transform: capitalize; }
 .today-count { font-size: 13.5px; color: rgba(255,255,255,0.5); margin: 8px 0 0; font-weight: 500; }
- 
+
 /* ---- Sections ---- */
 .section { margin-bottom: 26px; }
 .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -1110,7 +1107,7 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 11px; font-weight: 700; min-width: 19px; height: 19px; padding: 0 6px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.7);
 }
- 
+
 /* ---- Task rows ---- */
 .task-list, .day-list { display: flex; flex-direction: column; gap: 9px; }
 .section .task-row { margin-bottom: 9px; }
@@ -1134,7 +1131,7 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 8px;
   border-radius: 6px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6);
 }
- 
+
 /* ---- Empty ---- */
 .empty {
   display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
@@ -1142,7 +1139,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .empty-title { font-size: 14.5px; font-weight: 600; color: rgba(255,255,255,0.6); margin: 6px 0 0; }
 .empty-sub { font-size: 13px; margin: 0; color: rgba(255,255,255,0.38); }
- 
+
 /* ---- Tasks filters ---- */
 .tasks-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .filters { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -1153,7 +1150,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .chip-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .chip-btn.on { background: #fff; color: #050505; border-color: #fff; font-weight: 600; }
- 
+
 /* ---- Goals ---- */
 .goals-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
 .goals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
@@ -1179,14 +1176,14 @@ button { font-family: inherit; cursor: pointer; }
 .ms-row:hover { opacity: 0.85; }
 .ms-title { font-size: 13.5px; color: rgba(255,255,255,0.82); }
 .linked-head { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 2px; }
- 
+
 /* ---- Overview ---- */
 .ov-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
 .stat-card { padding: 18px; display: flex; flex-direction: column; gap: 4px; }
 .stat-icon { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,0.07); display: inline-flex; align-items: center; justify-content: center; color: #fff; margin-bottom: 8px; transition: transform .3s var(--bz); }
 .stat-value { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
 .stat-label { font-size: 12px; color: rgba(255,255,255,0.5); font-weight: 500; }
- 
+
 .ov-cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
 .ov-panel { padding: 22px; }
 .panel-title { font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.5); display: block; margin-bottom: 22px; }
@@ -1197,7 +1194,7 @@ button { font-family: inherit; cursor: pointer; }
 .bar-fill { width: 100%; background: #fff; border-radius: 7px; box-shadow: 0 0 12px rgba(255,255,255,0.3); transition: height .5s var(--bz); }
 .bar-label { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 600; }
 .bar-label.now { color: #fff; }
- 
+
 .deadlines { display: flex; flex-direction: column; gap: 12px; }
 .deadline { display: flex; align-items: center; gap: 14px; }
 .dl-date { width: 46px; height: 46px; border-radius: 12px; background: rgba(255,255,255,0.06); display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -1207,7 +1204,7 @@ button { font-family: inherit; cursor: pointer; }
 .dl-title { font-size: 13.5px; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dl-kind { font-size: 11px; color: rgba(255,255,255,0.42); }
 .dl-left { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.55); flex-shrink: 0; }
- 
+
 /* ---- Modals ---- */
 .overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 22px; background: rgba(0,0,0,0.62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: fadeIn .25s var(--bz); }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -1218,7 +1215,7 @@ button { font-family: inherit; cursor: pointer; }
 .modal-body { padding: 4px 22px 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
 .modal-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 22px 20px; }
 .foot-right { display: flex; gap: 9px; margin-left: auto; }
- 
+
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field-row { display: flex; gap: 12px; }
 .field-row .field { flex: 1; }
@@ -1232,7 +1229,7 @@ button { font-family: inherit; cursor: pointer; }
 .input::placeholder { color: rgba(255,255,255,0.32); }
 .input.area { resize: vertical; min-height: 56px; line-height: 1.5; }
 select.input { appearance: none; cursor: pointer; }
- 
+
 .seg { display: flex; gap: 8px; }
 .seg-btn {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px;
@@ -1241,20 +1238,20 @@ select.input { appearance: none; cursor: pointer; }
 }
 .seg-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
 .seg-btn.on { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.1); color: #fff; }
- 
+
 .ms-edit { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
 .ms-edit-row { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: 10px; background: rgba(255,255,255,0.04); }
 .ms-bullet { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.45); flex-shrink: 0; }
 .ms-edit-title { flex: 1; font-size: 13.5px; color: rgba(255,255,255,0.85); }
 .add-ms { display: flex; gap: 8px; }
 .add-ms .input { flex: 1; }
- 
+
 /* ---- Scrollbar ---- */
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
- 
+
 /* ---- Responsive ---- */
 @media (max-width: 860px) {
   .planner-root { flex-direction: column; }
@@ -1279,4 +1276,3 @@ select.input { appearance: none; cursor: pointer; }
   .cal-title, .today-date { font-size: 22px; }
 }
 `;
- 
