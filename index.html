@@ -1,1278 +1,796 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Calendar, CheckSquare, Target, Sun, BarChart2, Plus, X, Clock,
-  ChevronLeft, ChevronRight, Trash2, Pencil, Check, TrendingUp,
-  Flag, ChevronDown, ChevronUp, CalendarClock,
-} from 'lucide-react';
-
-/* ----------------------------------------------------------------------- */
-/* Constantes & utilitaires                                                */
-/* ----------------------------------------------------------------------- */
-
-const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
-  "août", "septembre", "octobre", "novembre", "décembre"];
-const DAYS_LONG = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-
-const pad = (n) => String(n).padStart(2, "0");
-const toISO = (y, m, d) => y + "-" + pad(m + 1) + "-" + pad(d);
-const todayISO = () => { const d = new Date(); return toISO(d.getFullYear(), d.getMonth(), d.getDate()); };
-const uid = () => Math.random().toString(36).slice(2, 10);
-
-function addDays(iso, n) {
-  const d = new Date(iso + "T00:00:00");
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-  return toISO(x.getFullYear(), x.getMonth(), x.getDate());
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Déclic Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Plan : le monde du dossard de course et du timecode de tournage.
+   Grand condensé athlétique, numéro de dossard épinglé, timecodes en mono.
+   Le bleu cobalt guide, le rouge REC ne sert qu'au temps de la vidéo. */
+:root{
+  --bg:#EDF0F5; --surface:#FFFFFF; --sunk:#E2E6EE; --ink:#101828; --muted:#535E78; --line:#D0D6E2;
+  --accent:#2036E8; --accent-ink:#FFFFFF; --accent-soft:#E2E6FF; --signal:#D92D14;
+  --ok:#0B7A4C; --warn:#9A5600; --warn-soft:#FFF0D6; --ok-soft:#DCF5E9;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"Hanken Grotesk","Helvetica Neue",Arial,sans-serif;
+  --mono:"DM Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
 }
-function formatLong(iso) {
-  const d = new Date(iso + "T00:00:00");
-  return DAYS_LONG[d.getDay()] + " " + d.getDate() + " " + MONTHS[d.getMonth()];
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0C1221; --surface:#151D31; --sunk:#0F1729; --ink:#EEF1F8; --muted:#A3AEC7; --line:#2B3650;
+  --accent:#8C9DFF; --accent-ink:#0C1221; --accent-soft:#232E58; --signal:#FF6B4E;
+  --ok:#4DD29B; --warn:#F4B453; --warn-soft:#3A2C12; --ok-soft:#10352A; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0C1221; --surface:#151D31; --sunk:#0F1729; --ink:#EEF1F8; --muted:#A3AEC7; --line:#2B3650;
+  --accent:#8C9DFF; --accent-ink:#0C1221; --accent-soft:#232E58; --signal:#FF6B4E;
+  --ok:#4DD29B; --warn:#F4B453; --warn-soft:#3A2C12; --ok-soft:#10352A; color-scheme:dark;
 }
-function daysUntil(iso) {
-  const a = new Date(todayISO() + "T00:00:00");
-  const b = new Date(iso + "T00:00:00");
-  return Math.round((b - a) / 86400000);
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 var(--body);-webkit-text-size-adjust:100%}
+body{min-height:100%;padding-bottom:84px}
+h1,h2,h3,p{margin:0}
+h1,h2{font-family:var(--display);font-weight:900;text-transform:uppercase;letter-spacing:.005em;line-height:.95;text-wrap:balance}
+h1{font-size:clamp(46px,9vw,88px);font-style:normal}
+h2{font-size:clamp(30px,5vw,40px)}
+h3{font-size:18px;font-weight:700;line-height:1.25;text-wrap:balance}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+.topbar{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:2px solid var(--ink)}
+.topbar .wrap{display:flex;align-items:center;gap:20px;min-height:60px}
+.logo{font:900 28px/1 var(--display);text-transform:uppercase;letter-spacing:.01em;background:none;border:0;padding:0;cursor:pointer}
+.logo span{color:var(--accent)}
+.nav{display:flex;gap:2px;margin-left:auto}
+.nav button{background:none;border:0;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:15px;color:var(--muted)}
+.nav button:hover{color:var(--ink);background:var(--sunk)}
+.nav button[aria-current="page"]{color:var(--accent-ink);background:var(--accent)}
+.status{font:400 12px/1 var(--mono);color:var(--muted);white-space:nowrap}
+main.wrap{padding:32px 20px 40px}
+.stack{display:flex;flex-direction:column;gap:18px}
+.stack-lg{display:flex;flex-direction:column;gap:36px}
+.head{display:flex;flex-direction:column;gap:8px;max-width:680px;align-items:flex-start}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:6px;border:2px solid var(--ink);background:transparent;font-weight:700;cursor:pointer;line-height:1.2;min-height:44px}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.small{padding:6px 11px;min-height:34px;font-size:14px;border-width:1.5px}
+.btn.quiet{border-color:var(--line);font-weight:600}
+.btn[disabled]{opacity:.55;cursor:wait}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.between{justify-content:space-between}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.tag{display:inline-block;font:500 12px/1 var(--mono);padding:5px 7px;border-radius:4px;background:var(--sunk);color:var(--muted)}
+.tag.ex{background:var(--warn-soft);color:var(--warn)}
+.tag.a{background:var(--accent-soft);color:var(--accent)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600}
+input[type=text],input[type=number],input[type=search],textarea,select{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:6px;padding:10px 12px;font-weight:400}
+textarea{resize:vertical;min-height:88px;line-height:1.5}
+input:focus,textarea:focus{border-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1.5px solid var(--line);background:var(--surface);padding:6px 11px;border-radius:999px;cursor:pointer;font-size:14px;font-weight:600}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.notice{border-left:4px solid var(--accent);background:var(--accent-soft);padding:12px 14px;border-radius:0 6px 6px 0;font-size:15px}
+.notice.warn{border-color:var(--warn);background:var(--warn-soft)}
+.loading{display:flex;gap:12px;align-items:center;padding:16px;border:1.5px dashed var(--line);border-radius:8px}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--signal);flex:none;animation:rec 1.2s infinite}
+@keyframes rec{50%{opacity:.25}}
+
+/* Accueil */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:center}
+.hero .lead{font-size:18px;max-width:52ch}
+.bib{background:#FFFFFF;color:#101828;border:2px solid #101828;border-radius:8px;position:relative;transform:rotate(1.6deg);overflow:hidden;box-shadow:6px 6px 0 var(--accent)}
+.bib-top{background:#2036E8;color:#fff;font:700 13px/1 var(--mono);padding:13px 24px;display:flex;justify-content:space-between;gap:8px}
+.bib-num{font:900 112px/.9 var(--display);text-align:center;padding:16px 16px 4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bib-name{font:800 20px/1.1 var(--display);text-transform:uppercase;text-align:center;padding:0 22px 18px;overflow-wrap:anywhere}
+.pin{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--bg);border:1.5px solid #101828}
+.pin.a{top:8px;left:8px}.pin.b{top:8px;right:8px}.pin.c{bottom:8px;left:8px}.pin.d{bottom:8px;right:8px}
+.rail{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,1fr);gap:0;counter-reset:s}
+.rail li{border-top:5px solid var(--line);padding:9px 8px 0 0;font-size:14px;font-weight:600;color:var(--muted)}
+.rail li.done{border-color:var(--ok);color:var(--ink)}
+.rail li.now{border-color:var(--accent);color:var(--accent)}
+.rail .n{display:block;font:500 12px/1.3 var(--mono)}
+.next{background:var(--ink);color:var(--bg);border-radius:10px;padding:24px;display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.next h2{font-size:32px}
+.next p{max-width:56ch;margin-top:6px;opacity:.86}
+.next .btn{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.stat b{font:900 38px/1 var(--display);display:block;font-variant-numeric:tabular-nums}
+
+/* Script */
+.script{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
+.side{position:sticky;top:78px;display:flex;flex-direction:column;gap:14px}
+.sec{display:grid;grid-template-columns:62px minmax(0,1fr);gap:12px}
+.tc{font:500 13px/1.2 var(--mono);color:var(--signal);padding-top:30px;font-variant-numeric:tabular-nums}
+.tc::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--signal);margin-right:5px;vertical-align:1px}
+.sec-body{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sec-title{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap;font-weight:700}
+.sec textarea{font-size:17px;min-height:96px}
+.dir{font-size:14px;color:var(--muted);font-style:italic}
+.tools{display:flex;flex-wrap:wrap;gap:4px}
+.tools button{background:none;border:0;padding:4px 7px;border-radius:4px;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer}
+.tools button:hover{background:var(--accent-soft)}
+.hookopt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1.5px solid var(--line);border-radius:6px;cursor:pointer;background:var(--surface)}
+.hookopt.on{border-color:var(--accent)}
+.hookopt input{margin-top:5px;accent-color:var(--accent)}
+.check{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.check li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;font-size:14px;line-height:1.35;align-items:start}
+.pill{font:500 11px/1 var(--mono);padding:4px 0;text-align:center;border-radius:4px}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.bigtime{font:900 54px/1 var(--display);font-variant-numeric:tabular-nums}
+
+/* Prompteur */
+.prompter{position:fixed;inset:0;z-index:60;background:#05070D;color:#F5F7FB;display:flex;flex-direction:column}
+.p-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 16px;background:#0F1524}
+.p-bar button{background:#22304F;color:#fff;border:0;padding:9px 13px;border-radius:6px;font-weight:700;cursor:pointer;min-height:40px}
+.p-bar .go{background:#2036E8}
+.p-bar label{font-size:14px;display:flex;align-items:center;gap:6px}
+.p-text{flex:1;overflow-y:auto;padding:38vh 8vw 60vh;font-weight:600;line-height:1.35}
+.p-text p{margin:0 0 1em;max-width:30ch;margin-inline:auto}
+.p-text mark{background:#FFD24A;color:#101828;padding:0 4px;border-radius:3px}
+.p-line{position:absolute;left:0;right:0;top:40%;border-top:2px solid rgba(255,107,78,.55);pointer-events:none}
+
+/* Profil guidé */
+.wizard{max-width:640px;display:flex;flex-direction:column;gap:16px}
+.progress{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent)}
+.pillar{border-top:4px solid var(--accent);padding-top:8px}
+
+.tabs{display:none}
+@media (max-width:860px){
+  .hero,.script{grid-template-columns:1fr}
+  .bib{width:210px;margin:0 auto;order:2}
+  .bib-num{font-size:72px;padding-top:10px}
+  .bib-name{font-size:16px;padding-bottom:14px}
+  .hero .lead{display:none}
+  .hero{gap:20px}
+  .side{position:static}
+  .nav{display:none}
+  .status{margin-left:auto}
+  .tabs{display:grid;grid-template-columns:repeat(6,1fr);position:fixed;bottom:0;left:0;right:0;z-index:30;background:var(--surface);border-top:2px solid var(--ink)}
+  .tabs button{background:none;border:0;padding:12px 0 13px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;min-height:54px}
+  .tabs button[aria-current="page"]{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
 }
-function monthGrid(year, month) {
-  const first = new Date(year, month, 1);
-  const lead = (first.getDay() + 6) % 7;
-  const start = new Date(year, month, 1 - lead);
-  const cells = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-    cells.push({ iso: toISO(d.getFullYear(), d.getMonth(), d.getDate()), day: d.getDate(), out: d.getMonth() !== month });
-  }
-  return cells;
+@media (max-width:560px){
+  .rail{grid-template-columns:repeat(3,1fr);row-gap:12px}
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .stat b{font-size:30px}
+  .sec{grid-template-columns:1fr;gap:2px}
+  .tc{padding-top:0}
 }
-function weekISOs(iso) {
-  const d = new Date(iso + "T00:00:00");
-  const lead = (d.getDay() + 6) % 7;
-  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - lead);
-  const out = [];
-  for (let i = 0; i < 7; i++) {
-    const x = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
-    out.push(toISO(x.getFullYear(), x.getMonth(), x.getDate()));
-  }
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+</style>
+</head>
+<body>
+<header class="topbar"><div class="wrap">
+  <button class="logo" data-go="today" aria-label="Déclic Studio, accueil">Déclic<span>.</span></button>
+  <nav class="nav" id="nav" aria-label="Navigation principale"></nav>
+  <span class="status" id="status" role="status"></span>
+</div></header>
+<main class="wrap" id="app"></main>
+<nav class="tabs" id="tabs" aria-label="Navigation mobile"></nav>
+<div id="overlay"></div>
+
+<script>
+"use strict";
+/* ---------- Données fixes ---------- */
+const VIEWS=[["today","Aujourd’hui"],["idees","Idées"],["script","Script"],["accroches","Accroches"],["videos","Vidéos"],["profil","Profil"]];
+const THEMES=["Discipline","Progression","Sport","Défis","Réussite","Mindset"];
+const WPS=2.6; // français parlé face caméra : environ 155 mots par minute
+const SECTIONS=[
+ ["accroche","Accroche","Arrêter le pouce"],
+ ["tension","Tension","Nommer ce qui coince"],
+ ["preuve","Ton vécu","La preuve, c’est toi"],
+ ["declic","Déclic","L’idée qui change l’angle"],
+ ["action","Action","Un geste faisable aujourd’hui"],
+ ["fin","Fin","Donner envie d’envoyer ou de revoir"]];
+const FIELDS=[
+ {k:"name",q:"Comment tu t’appelles à l’image ?",why:"Ton nom apparaît sur ton dossard et dans tes scripts.",type:"text",ph:"Ton prénom ou ton pseudo",req:1},
+ {k:"gender",q:"Quand tu parles de toi, tu dis plutôt…",why:"Tes scripts sont à la première personne : les accords doivent être justes.",type:"chips",opts:["« je suis motivée » (féminin)","« je suis motivé » (masculin)"]},
+ {k:"story",q:"D’où tu pars ?",why:"Ton histoire est ce que personne ne peut copier. C’est la matière de tes meilleures vidéos.",type:"area",ph:"Ce que tu as traversé, tes échecs, le moment où quelque chose a changé…",req:1},
+ {k:"now",q:"Où tu en es aujourd’hui ?",why:"Tes routines et ton sport nourrissent le concret de chaque script.",type:"area",ph:"Ta routine, ton sport, ce que tu travailles, ce qui reste dur…"},
+ {k:"challenge",q:"Quel défi tu suis en ce moment ?",why:"Un défi en cours donne une série et une raison de revenir voir la suite.",type:"challenge"},
+ {k:"audience",q:"À qui tu parles ?",why:"On écrit mieux pour une seule personne que pour tout le monde.",type:"area",ph:"Son âge, sa vie, ce qu’elle veut devenir…",req:1},
+ {k:"blocks",q:"Qu’est-ce qui bloque vraiment cette personne ?",why:"Les accroches qui marchent nomment un blocage précis.",type:"area",ph:"Elle commence tout et ne finit rien, elle se compare…"},
+ {k:"belief",q:"Quelle idée tu défends, même si elle déplaît ?",why:"Une opinion claire fait réagir et donne envie d’envoyer la vidéo.",type:"area",ph:"Ex. : la motivation est surestimée"},
+ {k:"goal",q:"Que veux-tu que ton compte t’apporte dans 90 jours ?",why:"Les concepts seront choisis en fonction de ce but.",type:"chips",opts:["Plus de portée","Une communauté fidèle","Vendre une offre","Des partenariats"]},
+ {k:"voice",q:"Comment tu parles ?",why:"Colle une phrase ou un extrait de tes vidéos. Les scripts reprendront ta façon de dire les choses.",type:"area",ph:"Tes expressions, ta manière de t’adresser aux gens, un script que tu aimes…"},
+ {k:"wins",q:"Quelle vidéo a le mieux marché, et pourquoi selon toi ?",why:"On repart de ce qui a déjà fonctionné chez toi.",type:"area",ph:"Le sujet, l’accroche, ce que les gens ont commenté…"},
+ {k:"rhythm",q:"Combien de vidéos par semaine tiens-tu vraiment ?",why:"Un rythme tenu vaut mieux qu’un rythme rêvé. Ton guide s’y adapte.",type:"num",ph:"3"}
+];
+const HOOKS=[
+ ["Vérité","Personne ne veut l’entendre, mais [sujet] ne dépend pas de ta motivation."],
+ ["Vérité","Si tu n’arrives pas à [objectif], ce n’est pas un problème de volonté."],
+ ["Vérité","Ce n’est pas de la paresse. Tu fuis quelque chose de précis."],
+ ["Vérité","Ton problème n’a jamais été le temps."],
+ ["Vérité","Tu sais déjà quoi faire. C’est pour ça que tu tournes en rond."],
+ ["Vérité","Arrête de te dire que tu commences lundi."],
+ ["Vérité","La discipline ne se ressent pas comme ce que tu imagines."],
+ ["Vérité","Le jour où tu auras envie n’arrivera pas."],
+ ["Confession","J’ai longtemps menti sur [sujet]."],
+ ["Confession","Je n’en ai jamais parlé ici, mais [moment difficile]."],
+ ["Confession","J’ai failli tout arrêter le jour [jour]."],
+ ["Confession","Il y a [durée], je n’arrivais même pas à [petite action]."],
+ ["Confession","Ce que personne n’a vu derrière [réussite]."],
+ ["Confession","Ce matin, je n’avais aucune envie d’y aller."],
+ ["Confession","J’ai perdu [durée] à cause d’une seule croyance."],
+ ["Défi","Jour [X] : voici ce qui a vraiment changé."],
+ ["Défi","Ça fait [X] jours que je fais [habitude]. Je n’avais pas prévu ça."],
+ ["Défi","Je me suis lancé un défi que je ne suis pas sûr de finir."],
+ ["Défi","Essaie ça pendant 7 jours et regarde ce qui bouge."],
+ ["Défi","Le jour [X], c’est là que la plupart abandonnent."],
+ ["Défi","Mon défi a échoué. Voici ce que j’en garde."],
+ ["Défi","Ce que je n’ai pas montré du jour [X]."],
+ ["Contre-pied","Arrête de te lever à 5 h."],
+ ["Contre-pied","Ne fixe plus d’objectifs."],
+ ["Contre-pied","La pire chose à faire quand tu perds ta motivation, c’est d’en chercher."],
+ ["Contre-pied","Tout le monde te dit de sortir de ta routine. Fais l’inverse."],
+ ["Contre-pied","Le repos m’a plus fait progresser que [effort]."],
+ ["Contre-pied","Les gens disciplinés ne sont pas ceux que tu crois."],
+ ["Contre-pied","Aller plus vite t’éloigne de ton objectif."],
+ ["Test","Si tu fais ça le matin, ta journée est déjà perdue."],
+ ["Test","Trois signes que tu progresses sans t’en rendre compte."],
+ ["Test","Réponds à cette question et tu sauras si tu avances vraiment."],
+ ["Test","Regarde ton téléphone : il te dit où part ta vie."],
+ ["Test","Si cette phrase te vise, c’est que tu es au bon endroit."],
+ ["Test","Le test de 10 secondes pour savoir si tu te mens."],
+ ["Envoi","Envoie ça à l’ami qui recommence toujours lundi."],
+ ["Envoi","Si quelqu’un t’a envoyé cette vidéo, il croit en toi."],
+ ["Envoi","Cette vidéo est pour la personne qui veut tout lâcher ce soir."],
+ ["Envoi","Montre ça à ton partenaire d’entraînement."],
+ ["Envoi","On connaît tous quelqu’un qui fait ça."],
+ ["Méthode","La règle des 2 minutes qui a changé mes matins."],
+ ["Méthode","Comment je tiens quand je n’ai plus envie."],
+ ["Méthode","Ce que je fais juste après un échec."],
+ ["Méthode","Une seule question avant chaque séance."],
+ ["Méthode","Voici comment je me remets au sport après une pause."],
+ ["Méthode","La chose que je fais tous les soirs pour ne pas lâcher."]
+];
+const CLICHES=["zone de confort","mindset de gagnant","meilleure version de toi","crois en tes rêves","rien n’est impossible","tout est possible","le succès","game changer","sors de ta zone","n'attends plus","transforme ta vie","passe au niveau supérieur"];
+const RULES=`Tu écris pour un créateur francophone de vidéos courtes face caméra (Instagram Reels et TikTok), niche développement personnel : discipline, progression, sport, défis, réussite, mindset.
+TON : comme un ami proche. Posé et réfléchi, direct, puis une montée d'énergie motivante vers la fin. Une personne parle à une personne : tutoiement.
+STYLE : français parlé naturel. Phrases courtes, faciles à dire d'un souffle. Du concret, des gestes, des images. Pas de vocabulaire de coach, aucun anglicisme inutile, pas d'expressions comme "zone de confort", "meilleure version de toi", "mindset de gagnant". Pas de "Salut", pas d'annonce de ce que la vidéo va dire.
+HONNÊTETÉ : n'invente jamais un fait sur le créateur, un souvenir, un chiffre, une étude ou une citation. Utilise seulement ce que dit le profil. Si un détail personnel manque, écris un repère entre crochets à remplir, par exemple [ton exemple : le jour où tu as voulu arrêter]. L'accroche doit être tenue par la vidéo : pas de promesse trompeuse.
+SÉCURITÉ : aucun défi dangereux, aucun jeûne ou régime extrême, aucun entraînement malgré une blessure, aucune promesse de gains, de guérison ou de résultat garanti. Si le sujet touche à une vraie détresse, invite avec douceur à en parler à un proche ou à un professionnel.
+PORTÉE : les signaux qui comptent le plus sont le temps de visionnage, la complétion et les envois à un proche. Chaque idée doit donc donner une raison de rester jusqu'à la fin et une raison précise de l'envoyer à quelqu'un.`;
+
+/* ---------- État et sauvegarde ---------- */
+const KEY="declic-studio-v1";
+const blank=()=>({profile:{themes:THEMES.slice()},strategy:null,ideas:[],rejected:[],hookFavs:[],currentId:null,updatedAt:0,videos:[]});
+let S=blank();
+try{const raw=localStorage.getItem(KEY);if(raw)S=Object.assign(blank(),JSON.parse(raw));}catch(e){}
+const ui={view:"today",wizard:null,busy:null,error:null,spark:"",pillar:"",hookCat:"Tous",hookQ:"",adapted:{},openVideo:null,subject:""};
+let db=null,uid=null,ai=undefined,timer=null,dirtyMain=false,dirtyVideos=new Set(),writing=false,cloud=false;
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const id=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const words=t=>(String(t||"").replace(/\[[^\]]*\]/g,m=>m.split(/\s+/).slice(0,4).join(" ")).trim().match(/[^\s]+/g)||[]).length;
+const secs=t=>words(t)/WPS;
+const fmt=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+const holes=t=>(String(t||"").match(/\[[^\]]+\]/g)||[]);
+const cur=()=>S.videos.find(v=>v.id===S.currentId)||null;
+const profileReady=()=>{const p=S.profile;return !!(p.name&&p.story&&p.audience)};
+const femme=()=>/féminin/.test(S.profile.gender||"");
+
+function setStatus(t){const e=$("#status");if(e)e.textContent=t}
+function touch(v){S.updatedAt=Date.now();dirtyMain=true;if(v){v.updatedAt=Date.now();dirtyVideos.add(v.id)}schedule()}
+function schedule(){
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  clearTimeout(timer);timer=setTimeout(flush,900);
+}
+function mainDoc(){const {videos,...rest}=S;return rest}
+async function flush(){
+  if(!db||!uid){setStatus(cloud?"":"Sur cet appareil");return}
+  if(writing){clearTimeout(timer);timer=setTimeout(flush,700);return}
+  writing=true;setStatus("Enregistrement…");
+  try{
+    const col=db.collection("data/users/"+uid);
+    if(dirtyMain){dirtyMain=false;await col.doc("main").set(mainDoc())}
+    for(const vid of [...dirtyVideos]){
+      dirtyVideos.delete(vid);
+      const v=S.videos.find(x=>x.id===vid);
+      if(v)await col.doc("v-"+vid).set(v);else await col.doc("v-"+vid).delete();
+    }
+    setStatus("Enregistré");
+  }catch(e){setStatus("Sur cet appareil")}
+  writing=false;
+}
+async function connect(){
+  if(!window.claude||!claude.use){return}
+  try{
+    const [d,u]=await Promise.all([claude.use("db"),claude.use("user")]);
+    if(!d||!u)return;
+    const uidV=await u.id();if(!uidV)return;
+    db=d;uid=uidV;cloud=true;
+    const snap=await db.collection("data/users/"+uid).get();
+    let remote=null;const vids=[];
+    snap.docs.forEach(x=>{const b=x.data();if(!b)return;if(x.id==="main")remote=b;else if(x.id.startsWith("v-"))vids.push(b)});
+    const byId=new Map(S.videos.map(v=>[v.id,v]));
+    vids.forEach(v=>{const l=byId.get(v.id);if(!l||(v.updatedAt||0)>=(l.updatedAt||0))byId.set(v.id,JSON.parse(JSON.stringify(v)))});
+    if(remote&&(remote.updatedAt||0)>=(S.updatedAt||0)){const c=JSON.parse(JSON.stringify(remote));S=Object.assign(blank(),S,c)}
+    else if(S.updatedAt)dirtyMain=true;
+    S.videos=[...byId.values()].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    S.videos.forEach(v=>{if(!vids.some(r=>r.id===v.id))dirtyVideos.add(v.id)});
+    try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+    setStatus("Enregistré");render();
+    if(dirtyMain||dirtyVideos.size)flush();
+  }catch(e){setStatus("Sur cet appareil")}
+}
+async function getAI(){
+  if(ai!==undefined)return ai;
+  if(!window.claude||!claude.use){ai=null;return ai}
+  try{ai=await claude.use("sample")}catch(e){ai=null}
+  return ai;
+}
+async function ask(prompt,tier){
+  const s=await getAI();
+  if(!s)throw {code:"no_ai"};
+  return await s.json(prompt+"\n\nRéponds uniquement avec le JSON demandé, sans texte autour.",{modelTier:tier||"default",cache:false});
+}
+function aiError(e){
+  if(e&&e.code==="no_ai")return null;
+  if(e&&e.code==="not_granted"){ai=null;return null}
+  if(e&&e.code==="rate_limited")return "Trop de demandes d’un coup. Attends une minute puis réessaie.";
+  return "La génération n’a pas abouti. Réessaie, ton travail est conservé.";
+}
+
+/* ---------- Contexte envoyé à l’IA ---------- */
+function ctx(){
+  const p=S.profile,c=p.challenge||{},out=[];
+  const add=(l,v)=>{if(v)out.push(l+" : "+v)};
+  add("Prénom",p.name);add("Accords à la première personne",p.gender);
+  add("Son histoire",p.story);add("Aujourd'hui",p.now);
+  if(c.name)add("Défi en cours",c.name+(c.day?" (jour "+c.day+(c.total?" sur "+c.total:"")+")":""));
+  add("Audience",p.audience);add("Blocages de l'audience",p.blocks);add("Idée défendue",p.belief);
+  add("Objectif à 90 jours",p.goal);add("Sa façon de parler",p.voice);add("Ce qui a déjà marché",p.wins);
+  add("Thèmes",(p.themes||[]).join(", "));
+  if(S.strategy){add("Positionnement",S.strategy.positioning);add("Piliers",S.strategy.pillars.map(x=>x.name).join(", "));if(S.strategy.series)add("Série",S.strategy.series.name)}
+  const les=S.videos.filter(v=>v.lesson).slice(0,8).map(v=>"- "+v.idea.title+" : "+v.lesson);
+  if(les.length)out.push("Leçons de ses vidéos publiées :\n"+les.join("\n"));
+  return out.join("\n");
+}
+
+/* ---------- Mode sans IA ---------- */
+function localStrategy(){
+  const p=S.profile,a=(p.audience||"les gens qui veulent avancer").split(/[.\n]/)[0];
+  return {source:"modele",positioning:`${p.name||"Toi"} : l’ami qui montre ce que la discipline donne vraiment, jour après jour.`,promise:`Aider ${a} à tenir quand l’envie n’est plus là.`,
+   pillars:[{name:"Le défi en cours",why:"Donne une raison de revenir voir la suite.",example:"Ce que le jour J a vraiment changé"},
+    {name:"La vérité sur la discipline",why:"Les idées tranchées font réagir et s’envoient.",example:"Pourquoi la motivation ne te sauvera pas"},
+    {name:"Mon vécu",why:"Ton histoire est impossible à copier.",example:"Le jour où j’ai failli tout arrêter"},
+    {name:"La méthode",why:"Un geste précis donne envie d’enregistrer.",example:"Ce que je fais quand je n’ai plus envie"}],
+   series:{name:(p.challenge&&p.challenge.name)||"Une rep de plus",concept:"Un rendez-vous où tu racontes une seule chose apprise pendant l’effort."},
+   avoid:["Les conseils vagues sans exemple","Les promesses de résultat rapide","Les citations sur fond de musique sans vécu"]};
+}
+function localIdeas(){
+  const p=S.profile,c=p.challenge||{},j=c.day||"[X]",pl=(S.strategy&&S.strategy.pillars.map(x=>x.name))||["La vérité sur la discipline"];
+  const t=(ui.spark||"").trim();
+  const base=[
+   {title:`Jour ${j} : ce qui a vraiment changé`,angle:"Un bilan honnête du défi, sans mise en scène.",hook:`Jour ${j}. Personne ne te dit ce qui change vraiment.`,pillar:"Le défi en cours",sendTo:"Un ami qui suit le même objectif",stay:"On veut savoir ce qui a changé"},
+   {title:"Arrête d’attendre d’avoir envie",angle:"Tu montres ce que tu fais les jours sans envie.",hook:"Le jour où tu auras envie n’arrivera pas.",pillar:"La vérité sur la discipline",sendTo:"L’ami qui repousse toujours à lundi",stay:"On attend ce qu’il faut faire à la place"},
+   {title:"Le jour où j’ai failli tout lâcher",angle:"Un moment précis de ton histoire, et ce qui t’a fait rester.",hook:"J’ai failli tout arrêter. Voici ce qui m’a retenu.",pillar:"Mon vécu",sendTo:"Quelqu’un qui doute en ce moment",stay:"On veut connaître la fin de l’histoire"},
+   {title:"Une seule question avant chaque séance",angle:"Un petit rituel concret, utilisable dès demain.",hook:"Je me pose une seule question avant chaque séance.",pillar:"La méthode",sendTo:"Son partenaire d’entraînement",stay:"La question n’arrive qu’au milieu"},
+   {title:"Trois signes que tu progresses sans le voir",angle:"Rassurer ceux qui pensent stagner.",hook:"Tu progresses, et tu ne le vois pas.",pillar:"La méthode",sendTo:"Une personne qui se compare trop",stay:"La liste se dévoile signe après signe"},
+   {title:"Envoie ça à celui qui recommence toujours lundi",angle:"Une vidéo écrite pour être envoyée à un ami.",hook:"Envoie ça à l’ami qui recommence toujours lundi.",pillar:"La vérité sur la discipline",sendTo:"L’ami visé par l’accroche",stay:"On veut voir si la vidéo vise juste"}];
+  if(t)base.unshift({title:t.slice(0,70),angle:"Ton moment de la semaine, transformé en leçon.",hook:"Il m’est arrivé un truc cette semaine.",pillar:pl[0],sendTo:"Quelqu’un qui vit la même chose",stay:"On veut savoir ce que tu en as tiré"});
+  return base.slice(0,6).map(x=>Object.assign({id:id(),source:"modele"},x));
+}
+function localScript(idea,d){
+  const n=[idea.hook||idea.title,"Avec un peu de recul, ce qui bloque n’est pas ce qu’on croit.","[ton exemple : un moment précis où tu as vécu ça]","[ton idée : la phrase que tu aurais voulu entendre à ce moment-là]","Aujourd’hui, fais juste ça : [un geste de moins de deux minutes].",`Si ça te parle, envoie ça à ${String(idea.sendTo||"quelqu’un qui en a besoin").replace(/^([A-ZÉ])/,m=>m.toLowerCase())}.`];
+  return {duration:d,hooks:[idea.hook||idea.title,"Personne ne te le dira comme ça.","Je vais être direct avec toi."],hookIndex:0,screenText:idea.title,
+    sections:SECTIONS.map((s,i)=>({key:s[0],label:s[1],goal:s[2],text:n[i],direction:["Regard caméra, pas de bonjour.","Voix posée, comme à un ami.","Ralentis, laisse un silence.","Rapproche-toi de l’objectif.","Plus d’énergie, va droit au but.","Termine sur une phrase qui peut relancer la vidéo."][i]})),
+    tips:["Tourne près d’une fenêtre.","Fais trois prises de l’accroche : c’est la plus importante."],source:"modele"};
+}
+
+/* ---------- Générations ---------- */
+async function run(label,fn){
+  ui.busy=label;ui.error=null;render();
+  try{await fn()}catch(e){ui.error=aiError(e)||ui.error;console.warn(e)}
+  ui.busy=null;render();
+}
+function genStrategy(){return run("J’analyse ton profil pour trouver ta ligne…",async()=>{
+  let r;
+  try{
+    r=await ask(`${RULES}\n\nPROFIL\n${ctx()}\n\nDéfinis sa ligne éditoriale. Reste au plus près de ce qui est unique chez lui ou elle.\nJSON : {"positioning":"une phrase, qui il ou elle est pour son audience","promise":"ce que l'audience gagne à le ou la suivre","pillars":[{"name":"3 à 5 mots","why":"une phrase","example":"un exemple de vidéo"}],"series":{"name":"nom court d'une série récurrente","concept":"une phrase"},"avoid":["3 choses à éviter"]}\nDonne exactement 4 piliers.`,"default");
+    if(!r||!Array.isArray(r.pillars))throw {code:"bad"};
+    r.source="ia";
+  }catch(e){if(aiError(e)&&e.code!=="bad")throw e;r=localStrategy()}
+  S.strategy=r;touch();
+})}
+function genIdeas(){return run("Je cherche des concepts à partir de ton vécu…",async()=>{
+  let list;
+  try{
+    const avoid=[...S.rejected.slice(-20),...S.videos.slice(0,20).map(v=>v.idea.title),...S.ideas.map(i=>i.title)];
+    const r=await ask(`${RULES}\n\nPROFIL\n${ctx()}\n\n${ui.spark?"CE QUI S'EST PASSÉ CETTE SEMAINE : "+ui.spark+"\nAu moins deux concepts doivent partir de ce moment.\n":""}${ui.pillar?"PILIER À PRIVILÉGIER : "+ui.pillar+"\n":""}${avoid.length?"DÉJÀ VU, NE PAS RÉPÉTER : "+avoid.join(" ; ")+"\n":""}
+Propose 6 concepts de vidéos face caméra, très différents les uns des autres. Chacun doit s'appuyer sur un élément réel du profil. Si un défi est en cours, l'un d'eux est un épisode de ce défi. Évite les sujets vus partout : prends un angle que seule cette personne peut raconter.
+JSON : {"ideas":[{"title":"titre court","angle":"l'angle en une phrase","hook":"accroche parlée, 12 mots maximum","pillar":"pilier","stay":"pourquoi on reste jusqu'à la fin","sendTo":"à qui précisément on l'envoie","ingredient":"l'élément du profil utilisé"}]}`,"default");
+    if(!r||!Array.isArray(r.ideas)||!r.ideas.length)throw {code:"bad"};
+    list=r.ideas.map(x=>Object.assign({},x,{id:id(),source:"ia"}));
+  }catch(e){if(aiError(e)&&e.code!=="bad")throw e;list=localIdeas()}
+  S.ideas=[...list,...S.ideas.filter(i=>i.saved)].slice(0,30);touch();
+})}
+function genScript(idea,duration){
+  const d=duration||S.profile.duration||45;
+  return run("J’écris ton script…",async()=>{
+    let r;
+    try{
+      const total=Math.round(d*WPS);
+      const o=await ask(`${RULES}\n\nPROFIL\n${ctx()}\n\nCONCEPT\nTitre : ${idea.title}\nAngle : ${idea.angle||""}\nAccroche proposée : ${idea.hook||""}\nOn reste parce que : ${idea.stay||""}\nOn l'envoie à : ${idea.sendTo||""}\n
+Écris le script parlé de cette vidéo face caméra de ${d} secondes, soit environ ${total} mots au total (rythme de 155 mots par minute). Respecte ce total.
+Sections : accroche (12 mots maximum, 3 secondes), tension (nomme le blocage), preuve (le vécu du créateur), declic (l'idée qui change l'angle), action (un geste faisable aujourd'hui), fin (une dernière phrase qui donne envie d'envoyer la vidéo ou se reconnecte à l'accroche pour que la boucle marche).
+Ouvre une question dans l'accroche et ne la referme qu'après la preuve, pour garder l'attention.
+JSON : {"hooks":["3 accroches parlées différentes, 12 mots maximum"],"screenText":"texte à l'écran pendant l'accroche, 6 mots maximum","sections":[{"key":"accroche|tension|preuve|declic|action|fin","text":"texte exact à dire","direction":"indication de jeu très courte"}],"tips":["2 conseils de tournage précis pour cette vidéo"]}`,"complex");
+      if(!o||!Array.isArray(o.sections)||o.sections.length<4)throw {code:"bad"};
+      r={duration:d,hooks:(o.hooks||[]).slice(0,3),hookIndex:0,screenText:o.screenText||"",tips:o.tips||[],source:"ia",
+        sections:SECTIONS.map(s=>{const f=o.sections.find(x=>x.key===s[0])||{};return {key:s[0],label:s[1],goal:s[2],text:f.text||"",direction:f.direction||""}})};
+      if(r.hooks[0])r.sections[0].text=r.sections[0].text||r.hooks[0];
+      if(!r.hooks.length)r.hooks=[r.sections[0].text];
+    }catch(e){if(aiError(e)&&e.code!=="bad")throw e;r=localScript(idea,d)}
+    let v=S.videos.find(x=>x.ideaId===idea.id);
+    if(v)Object.assign(v,r);else{v=Object.assign({id:id(),ideaId:idea.id,idea:idea,status:"script",createdAt:Date.now(),metrics:{}},r);S.videos.unshift(v)}
+    v.status="script";S.currentId=v.id;touch(v);go("script");
+  });
+}
+async function rewrite(v,i,how){
+  const s=v.sections[i],orders={direct:"Rends ce passage plus direct et plus court dans ses phrases.",pose:"Rends ce passage plus posé et réfléchi, comme une confidence.",energie:"Donne plus d'énergie et d'élan à ce passage.",court:"Raccourcis ce passage d'un tiers sans perdre l'idée."};
+  ui.busy="Je retravaille « "+s.label+" »…";ui.error=null;render();
+  try{
+    const r=await ask(`${RULES}\n\nPROFIL\n${ctx()}\n\nSCRIPT COMPLET\n${v.sections.map(x=>x.label+" : "+x.text).join("\n")}\n\n${orders[how]}\nPassage à réécrire (${s.label}) : ${s.text}\nGarde les repères entre crochets s'ils sont encore utiles.\nJSON : {"text":"nouveau passage"}`,"default");
+    if(r&&r.text){s.text=r.text;touch(v)}
+  }catch(e){ui.error=aiError(e)||"Cette retouche demande l’IA, indisponible ici. Modifie le texte directement."}
+  ui.busy=null;render();
+}
+async function adaptHook(i){
+  const h=HOOKS[i];
+  ui.busy="J’adapte cette accroche à ton profil…";ui.error=null;render();
+  try{
+    const c=cur();
+    const r=await ask(`${RULES}\n\nPROFIL\n${ctx()}\n\n${c?"VIDÉO EN COURS : "+c.idea.title+"\n":""}Modèle d'accroche : ${h[1]}\nÉcris 3 accroches parlées inspirées de ce modèle, propres à cette personne, 12 mots maximum. Remplis les crochets avec du réel issu du profil ; s'il manque l'info, garde un repère entre crochets.\nJSON : {"hooks":["...","...","..."]}`,"quick");
+    if(r&&r.hooks)ui.adapted[i]=r.hooks;
+  }catch(e){const m=aiError(e);if(m)ui.error=m;else ui.adapted[i]=[fillHook(h[1])]}
+  ui.busy=null;render();
+}
+function fillHook(t){
+  const p=S.profile,c=p.challenge||{};
+  let o=t.replace(/\[X\]/g,c.day||"[X]").replace(/\[habitude\]/g,c.name||"[habitude]");
+  if(femme())o=o.replace("Je me suis lancé","Je me suis lancée").replace("pas sûr de","pas sûre de");
+  return o;
+}
+async function analyse(v){
+  const m=v.metrics||{},pct=m.watch&&v.duration?Math.round(m.watch/v.duration*100):null;
+  ui.busy="Je cherche ce que cette vidéo t’apprend…";ui.error=null;render();
+  try{
+    const r=await ask(`${RULES}\n\nPROFIL\n${ctx()}\n\nVIDÉO PUBLIÉE : ${v.idea.title}\nAccroche : ${v.sections[0].text}\nDurée : ${v.duration} s\nVues : ${m.views||"?"}\nTemps moyen regardé : ${m.watch||"?"} s${pct?" ("+pct+" %)":""}\nPartages : ${m.shares||"?"}\nEnregistrements : ${m.saves||"?"}\nRessenti : ${m.note||"aucun"}\nMoyennes de ses autres vidéos : ${JSON.stringify(averages(v))}\n\nDonne une leçon utile en une phrase, basée seulement sur ces chiffres, sans sur-interpréter une seule vidéo, et le prochain test à faire.\nJSON : {"lesson":"...","nextTest":"..."}`,"default");
+    if(r&&r.lesson){v.lesson=r.lesson;v.nextTest=r.nextTest||""}
+  }catch(e){const m2=aiError(e);if(m2)ui.error=m2}
+  if(!v.lesson)v.lesson=localLesson(v);
+  v.status="bilan";if(S.currentId===v.id)S.currentId=null;touch(v);ui.busy=null;render();
+}
+function averages(ex){
+  const l=S.videos.filter(v=>v!==ex&&v.metrics&&+v.metrics.views>0);
+  if(!l.length)return {};
+  const a=f=>l.reduce((s,v)=>s+(f(v)||0),0)/l.length;
+  return {vues:Math.round(a(v=>+v.metrics.views)),partagesPour1000:+a(v=>1000*(+v.metrics.shares||0)/+v.metrics.views).toFixed(1)};
+}
+function localLesson(v){
+  const m=v.metrics||{},pct=m.watch&&v.duration?m.watch/v.duration:0;
+  if(pct&&pct<.4)return "Les gens partent tôt : retravaille surtout l’accroche et la tension sur la prochaine vidéo.";
+  if(m.views&&(+m.shares||0)/+m.views<.002)return "On regarde, mais on envoie peu : vise une personne plus précise dans la prochaine vidéo.";
+  return "Bonne base : refais ce format avec un autre exemple tiré de ton vécu.";
+}
+
+/* ---------- Contrôle avant tournage ---------- */
+function checks(v){
+  const all=v.sections.map(s=>s.text).join(" "),hook=v.sections[0].text,t=secs(all),out=[];
+  const gap=Math.abs(t-v.duration)/v.duration;
+  out.push([gap<=.15,`Durée : ${fmt(t)} pour ${fmt(v.duration)} visé`,t>v.duration?"Raccourcis un passage.":"Tu peux ajouter un détail concret."]);
+  out.push([words(hook)<=12&&words(hook)>0,`Accroche : ${words(hook)} mots`,"Vise 12 mots maximum."]);
+  out.push([!/^\s*(salut|bonjour|hello|coucou|aujourd.hui je|dans cette vidéo)/i.test(hook),"Entrée directe dans le sujet","Enlève le bonjour ou l’annonce du sujet."]);
+  const long=Math.max(0,...all.split(/[.!?…]+/).map(words));
+  out.push([long<=18,`Phrase la plus longue : ${long} mots`,"Coupe-la pour la dire d’un souffle."]);
+  const low=all.toLowerCase().replace(/'/g,"’"),cl=CLICHES.filter(c=>low.includes(c.replace(/'/g,"’")));
+  out.push([!cl.length,cl.length?`Formule usée : « ${cl[0]} »`:"Aucune formule usée","Remplace-la par un exemple vécu."]);
+  const h=v.sections.reduce((n,s)=>n+holes(s.text).length,0);
+  out.push([h===0,h?`${h} repère${h>1?"s":""} à remplir avec ton vécu`:"Tous les repères sont remplis","Remplace les crochets par du réel."]);
   return out;
 }
-function byTime(a, b) {
-  if (a.time && b.time) return a.time.localeCompare(b.time);
-  if (a.time) return -1;
-  if (b.time) return 1;
-  return 0;
-}
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 6) return "Bonne nuit";
-  if (h < 12) return "Bonjour";
-  if (h < 18) return "Bon après-midi";
-  return "Bonsoir";
-}
 
-/* ----------------------------------------------------------------------- */
-/* Petits composants                                                       */
-/* ----------------------------------------------------------------------- */
-
-function Dot({ p }) {
-  return <span className={"pdot pdot-" + p} />;
-}
-
-function Overlay({ onClose, children }) {
-  return (
-    <div className="overlay" onMouseDown={onClose}>
-      <div className="modal glass" onMouseDown={(e) => e.stopPropagation()}>{children}</div>
-    </div>
-  );
-}
-
-function Empty({ icon: Icon, title, sub }) {
-  return (
-    <div className="empty">
-      <Icon size={26} strokeWidth={1.4} />
-      <p className="empty-title">{title}</p>
-      {sub && <p className="empty-sub">{sub}</p>}
-    </div>
-  );
-}
-
-function Section({ title, count, children }) {
-  return (
-    <div className="section">
-      <div className="section-head">
-        <span className="section-title">{title}</span>
-        {count != null && <span className="section-count">{count}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function TaskRow({ task, onToggle, onEdit, showDate }) {
-  return (
-    <div className="task-row glass hoverable">
-      <button
-        className={"check" + (task.done ? " on" : "")}
-        onClick={(e) => { e.stopPropagation(); onToggle(task.id); }}
-        aria-label={task.done ? "Marquer comme à faire" : "Marquer comme terminé"}
-      >
-        {task.done && <Check size={13} strokeWidth={3} />}
-      </button>
-      <div className="task-main" onClick={() => onEdit(task)}>
-        <div className="task-line">
-          <Dot p={task.priority} />
-          <span className={"task-title" + (task.done ? " struck" : "")}>{task.title}</span>
-        </div>
-        <div className="task-meta">
-          {showDate && task.date && <span className="meta-pill">{formatLong(task.date)}</span>}
-          {task.time && <span className="meta-pill"><Clock size={11} strokeWidth={2} /> {task.time}</span>}
-          {task.category && <span className="meta-tag">{task.category}</span>}
-        </div>
-      </div>
-      <button className="iconbtn ghosty" onClick={() => onEdit(task)} aria-label="Modifier">
-        <Pencil size={14} strokeWidth={1.8} />
-      </button>
-    </div>
-  );
-}
-
-function Sidebar({ view, setView, badges }) {
-  const items = [
-    { id: "today", label: "Aujourd'hui", icon: Sun, badge: badges.today },
-    { id: "calendar", label: "Calendrier", icon: Calendar },
-    { id: "tasks", label: "Tâches", icon: CheckSquare, badge: badges.tasks },
-    { id: "goals", label: "Objectifs", icon: Target, badge: badges.goals },
-    { id: "overview", label: "Vue d'ensemble", icon: BarChart2 },
-  ];
-  return (
-    <aside className="sidebar glass">
-      <div className="brand">
-        <span className="brand-mark"><span className="brand-dot" /></span>
-        <div className="brand-text">
-          <span className="brand-name">ORBIT</span>
-          <span className="brand-tag">Planifie tout</span>
-        </div>
-      </div>
-      <nav className="nav">
-        {items.map((it) => {
-          const Icon = it.icon;
-          const active = view === it.id;
-          return (
-            <button key={it.id} className={"nav-item" + (active ? " active" : "")} onClick={() => setView(it.id)}>
-              <Icon className="nav-icon" size={18} strokeWidth={1.8} />
-              <span className="nav-label">{it.label}</span>
-              {it.badge ? <span className="nav-badge">{it.badge}</span> : null}
-            </button>
-          );
-        })}
-      </nav>
-    </aside>
-  );
-}
-
-function QuickAdd({ onAdd, placeholder }) {
-  const [v, setV] = useState("");
-  const submit = () => { const t = v.trim(); if (!t) return; onAdd(t); setV(""); };
-  return (
-    <div className="quickadd glass">
-      <Plus size={17} strokeWidth={2} className="qa-icon" />
-      <input
-        className="qa-input"
-        value={v}
-        placeholder={placeholder}
-        onChange={(e) => setV(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
-      />
-      <button className="btn btn-sm" onClick={submit}>Ajouter</button>
-    </div>
-  );
-}
-
-/* ----------------------------------------------------------------------- */
-/* Vues                                                                    */
-/* ----------------------------------------------------------------------- */
-
-function CalendarView({ year, month, tasks, onPrev, onNext, onToday, onDay }) {
-  const grid = useMemo(() => monthGrid(year, month), [year, month]);
-  const byDate = useMemo(() => {
-    const m = {};
-    for (const t of tasks) { if (!t.date) continue; (m[t.date] = m[t.date] || []).push(t); }
-    for (const k in m) m[k].sort(byTime);
-    return m;
-  }, [tasks]);
-  const ti = todayISO();
-  return (
-    <div className="view">
-      <div className="cal-head">
-        <h1 className="cal-title">{MONTHS[month]} <span className="cal-year">{year}</span></h1>
-        <div className="cal-nav">
-          <button className="btn btn-ghost btn-sm" onClick={onToday}>Aujourd'hui</button>
-          <button className="iconbtn" onClick={onPrev} aria-label="Mois précédent"><ChevronLeft size={18} /></button>
-          <button className="iconbtn" onClick={onNext} aria-label="Mois suivant"><ChevronRight size={18} /></button>
-        </div>
-      </div>
-      <div className="cal-week">
-        {WEEKDAYS.map((d) => <div key={d} className="cal-wd">{d}</div>)}
-      </div>
-      <div className="cal-grid">
-        {grid.map((cell) => {
-          const list = byDate[cell.iso] || [];
-          const isToday = cell.iso === ti;
-          return (
-            <button
-              key={cell.iso}
-              className={"day-cell glass hoverable" + (cell.out ? " out" : "") + (isToday ? " today" : "")}
-              onClick={() => onDay(cell.iso)}
-            >
-              <span className="day-num">{cell.day}</span>
-              <div className="day-chips">
-                {list.slice(0, 3).map((t) => (
-                  <span key={t.id} className={"chip" + (t.done ? " done" : "")}>
-                    <Dot p={t.priority} />
-                    <span className="chip-text">{t.title}</span>
-                  </span>
-                ))}
-                {list.length > 3 && <span className="more">+{list.length - 3} autres</span>}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TodayView({ tasks, onToggle, onEdit, onQuickAdd }) {
-  const ti = todayISO();
-  const today = tasks.filter((t) => t.date === ti).sort(byTime);
-  const overdue = tasks.filter((t) => t.date && t.date < ti && !t.done).sort(byTime);
-  const soon = tasks
-    .filter((t) => t.date && t.date >= addDays(ti, 1) && t.date <= addDays(ti, 3) && !t.done)
-    .sort((a, b) => a.date.localeCompare(b.date) || byTime(a, b));
-  const done = today.filter((t) => t.done).length;
-  return (
-    <div className="view">
-      <div className="today-hero">
-        <p className="today-greet">{greeting()}</p>
-        <h1 className="today-date">{formatLong(ti)}</h1>
-        <p className="today-count">
-          {today.length === 0
-            ? "Aucune tâche prévue aujourd'hui"
-            : done + " / " + today.length + " terminée" + (today.length > 1 ? "s" : "")}
-        </p>
-      </div>
-      <QuickAdd onAdd={onQuickAdd} placeholder="Ajouter une tâche pour aujourd'hui…" />
-      <Section title="À faire aujourd'hui" count={today.length}>
-        {today.length === 0
-          ? <Empty icon={Sun} title="Rien de prévu" sub="Ajoute ta première tâche du jour ci-dessus." />
-          : today.map((t) => <TaskRow key={t.id} task={t} onToggle={onToggle} onEdit={onEdit} />)}
-      </Section>
-      {overdue.length > 0 && (
-        <Section title="En retard" count={overdue.length}>
-          {overdue.map((t) => <TaskRow key={t.id} task={t} onToggle={onToggle} onEdit={onEdit} showDate />)}
-        </Section>
-      )}
-      {soon.length > 0 && (
-        <Section title="Bientôt" count={soon.length}>
-          {soon.map((t) => <TaskRow key={t.id} task={t} onToggle={onToggle} onEdit={onEdit} showDate />)}
-        </Section>
-      )}
-    </div>
-  );
-}
-
-function TasksView({ tasks, onToggle, onEdit, onNew }) {
-  const [filter, setFilter] = useState("all");
-  const ti = todayISO();
-  const filters = [
-    { id: "all", label: "Toutes" },
-    { id: "today", label: "Aujourd'hui" },
-    { id: "upcoming", label: "À venir" },
-    { id: "nodate", label: "Sans date" },
-    { id: "done", label: "Terminées" },
-  ];
-  let list = tasks.slice();
-  if (filter === "today") list = list.filter((t) => t.date === ti);
-  else if (filter === "upcoming") list = list.filter((t) => t.date && t.date > ti && !t.done);
-  else if (filter === "nodate") list = list.filter((t) => !t.date);
-  else if (filter === "done") list = list.filter((t) => t.done);
-  list.sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
-    if (a.date && b.date) return a.date.localeCompare(b.date) || byTime(a, b);
-    if (a.date) return -1;
-    if (b.date) return 1;
-    return 0;
-  });
-  return (
-    <div className="view">
-      <div className="tasks-head">
-        <div className="filters">
-          {filters.map((f) => (
-            <button key={f.id} className={"chip-btn" + (filter === f.id ? " on" : "")} onClick={() => setFilter(f.id)}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <button className="btn" onClick={onNew}><Plus size={16} strokeWidth={2.2} /> Nouvelle tâche</button>
-      </div>
-      {list.length === 0
-        ? <Empty icon={CheckSquare} title="Aucune tâche ici" sub="Crée une tâche pour commencer à t'organiser." />
-        : <div className="task-list">{list.map((t) => <TaskRow key={t.id} task={t} onToggle={onToggle} onEdit={onEdit} showDate />)}</div>}
-    </div>
-  );
-}
-
-function GoalCard({ goal, tasks, onToggleMilestone, onToggleTask, onEdit, onDelete }) {
-  const [open, setOpen] = useState(false);
-  const ms = goal.milestones || [];
-  const linked = tasks.filter((t) => t.goalId === goal.id);
-  let pct;
-  if (ms.length) pct = Math.round((ms.filter((m) => m.done).length / ms.length) * 100);
-  else if (linked.length) pct = Math.round((linked.filter((t) => t.done).length / linked.length) * 100);
-  else pct = 0;
-  const dleft = goal.targetDate ? daysUntil(goal.targetDate) : null;
-  return (
-    <div className="goal-card glass hoverable">
-      <div className="goal-top">
-        <div className="goal-headtext">
-          <h3 className="goal-title">{goal.title}</h3>
-          {goal.targetDate && (
-            <span className="goal-due">
-              <Flag size={12} strokeWidth={2} />
-              {formatLong(goal.targetDate)}
-              {dleft != null && (
-                <span className="goal-left">
-                  {dleft < 0 ? "échéance passée" : dleft === 0 ? "aujourd'hui" : "dans " + dleft + " j"}
-                </span>
-              )}
-            </span>
-          )}
-        </div>
-        <div className="goal-actions">
-          <button className="iconbtn ghosty" onClick={() => onEdit(goal)} aria-label="Modifier"><Pencil size={14} strokeWidth={1.8} /></button>
-          <button className="iconbtn ghosty" onClick={() => onDelete(goal.id)} aria-label="Supprimer"><Trash2 size={14} strokeWidth={1.8} /></button>
-        </div>
-      </div>
-      {goal.description && <p className="goal-desc">{goal.description}</p>}
-      <div className="goal-progress">
-        <div className="goal-bar"><span className="goal-bar-fill" style={{ width: pct + "%" }} /></div>
-        <span className="goal-pct">{pct}%</span>
-      </div>
-      {(ms.length > 0 || linked.length > 0) && (
-        <button className="goal-toggle" onClick={() => setOpen((o) => !o)}>
-          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          {open ? "Masquer le détail" : "Voir le détail"}
-        </button>
-      )}
-      {open && (
-        <div className="goal-detail">
-          {ms.length > 0 && (
-            <div className="ms-list">
-              {ms.map((m) => (
-                <button key={m.id} className="ms-row" onClick={() => onToggleMilestone(goal.id, m.id)}>
-                  <span className={"check sm" + (m.done ? " on" : "")}>{m.done && <Check size={11} strokeWidth={3} />}</span>
-                  <span className={"ms-title" + (m.done ? " struck" : "")}>{m.title}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {linked.length > 0 && (
-            <div className="linked">
-              <span className="linked-head">Tâches liées</span>
-              {linked.map((t) => (
-                <button key={t.id} className="ms-row" onClick={() => onToggleTask(t.id)}>
-                  <span className={"check sm" + (t.done ? " on" : "")}>{t.done && <Check size={11} strokeWidth={3} />}</span>
-                  <span className={"ms-title" + (t.done ? " struck" : "")}>{t.title}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GoalsView({ goals, tasks, onToggleMilestone, onToggleTask, onEdit, onDelete, onNew }) {
-  return (
-    <div className="view">
-      <div className="goals-head">
-        <h1 className="view-title">Objectifs</h1>
-        <button className="btn" onClick={onNew}><Plus size={16} strokeWidth={2.2} /> Nouvel objectif</button>
-      </div>
-      {goals.length === 0
-        ? <Empty icon={Target} title="Pas encore d'objectif" sub="Définis un objectif et découpe-le en étapes concrètes." />
-        : <div className="goals-grid">
-            {goals.map((g) => (
-              <GoalCard
-                key={g.id}
-                goal={g}
-                tasks={tasks}
-                onToggleMilestone={onToggleMilestone}
-                onToggleTask={onToggleTask}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
-            ))}
-          </div>}
-    </div>
-  );
-}
-
-function OverviewView({ tasks, goals }) {
-  const ti = todayISO();
-  const week = weekISOs(ti);
-  const todayTasks = tasks.filter((t) => t.date === ti);
-  const todayDone = todayTasks.filter((t) => t.done).length;
-  const weekDone = tasks.filter((t) => t.date && week.includes(t.date) && t.done).length;
-  const allDone = tasks.filter((t) => t.done).length;
-  const rate = tasks.length ? Math.round((allDone / tasks.length) * 100) : 0;
-  const activeGoals = goals.filter((g) => {
-    const ms = g.milestones || [];
-    if (!ms.length) return true;
-    return ms.filter((m) => m.done).length < ms.length;
-  }).length;
-
-  const perDay = week.map((iso) => {
-    const list = tasks.filter((t) => t.date === iso);
-    return { iso, total: list.length, done: list.filter((t) => t.done).length };
-  });
-  const maxTotal = Math.max(1, ...perDay.map((d) => d.total));
-
-  const deadlines = [];
-  for (const g of goals) {
-    if (g.targetDate && daysUntil(g.targetDate) >= 0) {
-      deadlines.push({ id: "g" + g.id, kind: "Objectif", title: g.title, date: g.targetDate });
-    }
+/* ---------- Guide ---------- */
+function guide(){
+  const c=cur();
+  if(!profileReady())return {i:0,t:"Dis-moi qui tu es",b:"Quelques questions, une à la fois. Tout ce que l’appli te propose ensuite part de tes réponses.",l:"Répondre aux questions",a:"wizard"};
+  if(!S.strategy)return {i:1,t:"Trouvons ta ligne",b:"Je transforme ton profil en positionnement, quatre piliers de contenu et une série récurrente.",l:"Définir ma ligne",a:"strategy"};
+  if(!c)return {i:2,t:S.ideas.length?"Choisis ton concept":"Trouvons ta prochaine vidéo",b:S.ideas.length?"Tes concepts sont prêts. Prends celui que tu as le plus envie de raconter.":"Six concepts à partir de ton vécu et de ta semaine.",l:S.ideas.length?"Voir mes concepts":"Trouver des concepts",a:"idees"};
+  const h=v=>v.sections.reduce((n,s)=>n+holes(s.text).length,0);
+  if(c.status==="script"){
+    if(h(c))return {i:3,t:"Mets ton vécu dans le script",b:`Il reste ${h(c)} repère${h(c)>1?"s":""} à remplir. Seul ton vrai vécu peut rendre ce script crédible.`,l:"Compléter le script",a:"script"};
+    return {i:4,t:"Prêt à tourner",b:"Ton script est complet. Lance le prompteur et fais trois prises de l’accroche.",l:"Ouvrir le script",a:"script"};
   }
-  for (const t of tasks) {
-    if (t.date && !t.done && t.priority === "high" && daysUntil(t.date) >= 0) {
-      deadlines.push({ id: "t" + t.id, kind: "Priorité haute", title: t.title, date: t.date });
-    }
+  return {i:5,t:c.status==="tourne"?"Publie, puis reviens":"Fais ton bilan",b:c.status==="tourne"?"Une fois en ligne, attends 48 heures avant de noter tes chiffres.":"Note tes chiffres. Chaque bilan rend tes prochains concepts plus justes.",l:c.status==="tourne"?"Marquer comme publiée":"Faire le bilan",a:c.status==="tourne"?"publish":"bilan"};
+}
+function weekCount(){
+  const d=new Date(),day=(d.getDay()+6)%7,start=new Date(d.getFullYear(),d.getMonth(),d.getDate()-day).getTime();
+  return S.videos.filter(v=>v.publishedAt&&v.publishedAt>=start).length;
+}
+
+/* ---------- Rendu ---------- */
+function go(v){ui.view=v;ui.error=null;try{if(location.hash!=="#"+v)location.hash=v}catch(e){}render();window.scrollTo(0,0)}
+function busyHTML(){return ui.busy?`<div class="loading" aria-live="polite"><span class="dot"></span><span>${esc(ui.busy)}</span></div>`:""}
+function errHTML(){return ui.error?`<div class="notice warn" role="alert">${esc(ui.error)}</div>`:""}
+function modelNote(o){return o&&o.source==="modele"?`<div class="notice">L’écriture par IA n’est pas disponible ici. Voici un modèle à compléter. Ouvre l’appli depuis Claude et accepte la demande d’accès pour obtenir un texte écrit pour toi.</div>`:""}
+function render(){
+  const navH=VIEWS.map(([k,l])=>`<button data-go="${k}" ${ui.view===k?'aria-current="page"':""}>${l}</button>`).join("");
+  $("#nav").innerHTML=navH;
+  $("#tabs").innerHTML=VIEWS.map(([k,l])=>`<button data-go="${k}" ${ui.view===k?'aria-current="page"':""}>${l.replace("Aujourd’hui","Guide")}</button>`).join("");
+  const a=document.activeElement,keep=a&&a.id?[a.id,a.selectionStart]:null;
+  $("#app").innerHTML=({today:vToday,idees:vIdeas,script:vScript,accroches:vHooks,videos:vVideos,profil:vProfil}[ui.view]||vToday)();
+  if(keep){const e=document.getElementById(keep[0]);if(e){e.focus();try{e.setSelectionRange(keep[1],keep[1])}catch(x){}}}
+}
+function ideaCard(i,ex){
+  return `<article class="card">
+   <div class="row between"><span class="tag ${ex?"ex":"a"}">${ex?"Exemple":esc(i.pillar||"Concept")}</span>${ex?"":`<button class="btn small quiet" data-act="save-idea" data-id="${i.id}" aria-pressed="${!!i.saved}">${i.saved?"Gardée":"Garder"}</button>`}</div>
+   <h3>${esc(i.title)}</h3>
+   <p class="small">${esc(i.angle||"")}</p>
+   ${i.hook?`<p><b>« ${esc(i.hook)} »</b></p>`:""}
+   <p class="small muted">On reste : ${esc(i.stay||"")}<br>On l’envoie à : ${esc(i.sendTo||"")}${i.ingredient?`<br>Tiré de : ${esc(i.ingredient)}`:""}</p>
+   ${ex?"":`<div class="row"><button class="btn primary small" data-act="write" data-id="${i.id}" ${ui.busy?"disabled":""}>Écrire ce script</button><button class="btn small quiet" data-act="reject" data-id="${i.id}">Pas pour moi</button></div>`}
+  </article>`;
+}
+function vToday(){
+  const g=guide(),p=S.profile,c=p.challenge||{},done=S.videos.filter(v=>v.publishedAt).length,steps=["Profil","Ma ligne","Concept","Script","Tournage","Bilan"];
+  const num=c.day?String(c.day):String(done+1).padStart(2,"0"),top=c.day?(c.total?`JOUR / ${esc(c.total)}`:"JOUR"):"VIDÉO N°";
+  const title=profileReady()?`${esc(p.name)}, ta prochaine vidéo t’attend.`:"Ta prochaine vidéo commence ici.";
+  const rate=S.videos.filter(v=>v.metrics&&+v.metrics.views>0);
+  const best=rate.length?Math.max(...rate.map(v=>+v.metrics.views)):0;
+  return `<div class="stack-lg">
+  <section class="hero">
+    <div class="stack"><h1>${title}</h1>
+    <p class="lead">Déclic te guide de l’idée au bilan : concept, accroche, script face caméra et prompteur, à partir de ton vécu.</p></div>
+    <div class="bib" aria-label="Dossard ${esc(p.name||"")}"><i class="pin a"></i><i class="pin b"></i><i class="pin c"></i><i class="pin d"></i>
+      <div class="bib-top"><span>${top}</span><span>DÉCLIC</span></div>
+      <div class="bib-num">${esc(num)}</div>
+      <div class="bib-name">${esc(c.name||p.name||"Ton nom ici")}</div></div>
+  </section>
+  <section class="stack" aria-label="Ton parcours">
+    ${busyHTML()}${errHTML()}
+    <div class="next"><div><h2>${esc(g.t)}</h2><p>${esc(g.b)}</p></div>
+      <button class="btn" data-act="guide" data-a="${g.a}" ${ui.busy?"disabled":""}>${esc(g.l)}</button></div>
+    <ol class="rail">${steps.map((s,i)=>`<li class="${i<g.i?"done":i===g.i?"now":""}"><span class="n">${i+1}/6</span>${s}</li>`).join("")}</ol>
+  </section>
+  <section class="stats" aria-label="Tes chiffres">
+    <div class="card stat"><b>${weekCount()}/${esc(p.rhythm||3)}</b><span class="small muted">vidéos cette semaine</span></div>
+    <div class="card stat"><b>${done}</b><span class="small muted">vidéos publiées</span></div>
+    <div class="card stat"><b>${best?best.toLocaleString("fr-FR"):"—"}</b><span class="small muted">meilleures vues</span></div>
+  </section>
+  ${S.ideas.length?"":`<section class="stack"><div class="head"><h2>Ce que tu vas recevoir</h2><p class="muted">Ces deux concepts sont des exemples. Les tiens partiront de ton histoire.</p></div>
+   <div class="grid">${ideaCard({title:"Jour 12 : ce que je n’ai pas montré",angle:"Le jour où tu as failli sauter ta séance, raconté sans filtre.",hook:"Jour 12. Je n’ai pas tout montré.",stay:"On veut savoir ce qui s’est passé",sendTo:"Un ami qui suit le même défi",pillar:""},1)}${ideaCard({title:"Le matin où je n’avais aucune envie",angle:"Ce que tu fais les jours sans motivation.",hook:"Ce matin, je n’avais aucune envie d’y aller.",stay:"On attend ce qui t’a fait bouger",sendTo:"Celui qui repousse toujours à lundi",pillar:""},1)}</div></section>`}
+  </div>`;
+}
+function vIdeas(){
+  const pil=(S.strategy&&S.strategy.pillars)||[];
+  return `<div class="stack-lg"><div class="head"><h1>Idées</h1><p class="muted">Plus d’angoisse de la page blanche : raconte ta semaine, je m’occupe des angles.</p></div>
+  ${profileReady()?"":`<div class="notice">Les concepts seront bien plus personnels une fois <button class="btn small" data-act="guide" data-a="wizard">ton profil rempli</button></div>`}
+  <section class="card">
+    <label class="f" for="spark">Qu’est-ce qui t’a marqué cette semaine ?
+    <textarea id="spark" data-model="spark" placeholder="Une séance ratée, une phrase entendue, un moment où tu as eu envie de tout lâcher…">${esc(ui.spark)}</textarea></label>
+    ${pil.length?`<div class="chips" aria-label="Pilier"><button class="chip" data-act="pillar" data-v="" aria-pressed="${!ui.pillar}">Tous les piliers</button>${pil.map(x=>`<button class="chip" data-act="pillar" data-v="${esc(x.name)}" aria-pressed="${ui.pillar===x.name}">${esc(x.name)}</button>`).join("")}</div>`:""}
+    <div class="row"><button class="btn primary" data-act="ideas" ${ui.busy?"disabled":""}>Trouve-moi 6 concepts</button></div>
+  </section>
+  ${busyHTML()}${errHTML()}${modelNote(S.ideas[0])}
+  ${S.ideas.length?`<div class="grid">${S.ideas.map(i=>ideaCard(i)).join("")}</div>`:`<p class="muted">Tes concepts apparaîtront ici.</p>`}
+  <section class="card"><label class="f" for="subject">Tu as déjà ton sujet ?
+    <input type="text" id="subject" data-model="subject" value="${esc(ui.subject)}" placeholder="Ex. : pourquoi j’ai arrêté de me peser"></label>
+    <div class="row"><button class="btn" data-act="own-subject" ${ui.busy?"disabled":""}>Écrire le script de ce sujet</button></div></section>
+  </div>`;
+}
+function vScript(){
+  const v=S.videos.find(x=>x.id===ui.openVideo)||cur()||null;
+  if(!v)return `<div class="stack-lg"><div class="head"><h1>Script</h1><p class="muted">Aucun script en cours. Choisis d’abord un concept.</p></div>${busyHTML()}<div class="row"><button class="btn primary" data-go="idees">Trouver un concept</button></div></div>`;
+  let t=0;const blocks=v.sections.map((s,i)=>{const start=t;t+=secs(s.text);return `<div class="sec" data-sec="${i}">
+    <div class="tc" data-tc="${i}">${fmt(start)}</div>
+    <div class="sec-body"><div class="sec-title"><span>${esc(s.label)} <span class="muted small" style="font-weight:400">${esc(s.goal)}</span></span></div>
+    <textarea id="sec-${i}" data-sec-text="${i}" aria-label="${esc(s.label)}" rows="3">${esc(s.text)}</textarea>
+    ${s.direction?`<p class="dir">${esc(s.direction)}</p>`:""}
+    <div class="tools" aria-label="Retoucher ${esc(s.label)}">${[["direct","Plus direct"],["pose","Plus posé"],["energie","Plus d’énergie"],["court","Plus court"]].map(o=>`<button data-act="rewrite" data-i="${i}" data-how="${o[0]}" ${ui.busy?"disabled":""}>${o[1]}</button>`).join("")}</div>
+    </div></div>`}).join("");
+  const list=checks(v),okAll=list.every(x=>x[0]);
+  return `<div class="stack"><div class="head"><span class="tag a">${esc(v.idea.pillar||"Vidéo")}</span><h1 style="font-size:clamp(38px,6vw,60px)">${esc(v.idea.title)}</h1></div>
+  ${busyHTML()}${errHTML()}${modelNote(v)}
+  <div class="script"><div class="stack">
+    ${v.hooks&&v.hooks.length>1?`<fieldset class="stack" style="border:0;padding:0;margin:0;gap:8px"><legend style="font-weight:700;padding:0 0 6px">Choisis ton accroche</legend>
+    ${v.hooks.map((h,i)=>`<label class="hookopt ${v.hookIndex===i?"on":""}"><input type="radio" name="hook" data-hook="${i}" ${v.hookIndex===i?"checked":""}><span>${esc(h)}</span></label>`).join("")}</fieldset>`:""}
+    ${v.screenText?`<label class="f small" for="screenText">Texte à l’écran pendant l’accroche<input type="text" id="screenText" data-vfield="screenText" value="${esc(v.screenText)}"></label>`:""}
+    ${blocks}
+    <div class="row"><span class="small muted">Durée visée</span><div class="chips">${[30,45,60,90].map(d=>`<button class="chip" data-act="duration" data-d="${d}" aria-pressed="${v.duration===d}">${d} s</button>`).join("")}</div>
+    <button class="btn small quiet" data-act="regen" ${ui.busy?"disabled":""}>Réécrire pour cette durée</button></div>
+  </div>
+  <aside class="side">
+    <div class="card"><span class="small muted">Durée estimée à l’oral</span><div class="bigtime" id="bigtime">${fmt(t)}</div>
+      <button class="btn primary" data-act="prompter">Lancer le prompteur</button>
+      <button class="btn quiet" data-act="copy">Copier le script</button></div>
+    <div class="card" id="checkcard"><h3>Contrôle avant tournage</h3>${checkHTML(list)}
+      <p class="small muted">${okAll?"Tout est bon. Ce contrôle ne prédit pas les vues : il retire ce qui fait partir les gens.":"À corriger avant de tourner."}</p></div>
+    ${v.tips&&v.tips.length?`<div class="card"><h3>Pour le tournage</h3><ul style="margin:0;padding-left:18px" class="small">${v.tips.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:""}
+    <div class="card"><h3>Étape suivante</h3>
+      ${v.status==="script"?`<button class="btn" data-act="filmed" data-id="${v.id}">J’ai tourné cette vidéo</button>`:v.status==="tourne"?`<button class="btn" data-act="published" data-id="${v.id}">Je l’ai publiée</button>`:`<button class="btn" data-go="videos">Voir le bilan</button>`}</div>
+  </aside></div></div>`;
+}
+function checkHTML(l){return `<ul class="check">${l.map(c=>`<li><span class="pill ${c[0]?"ok":"warn"}">${c[0]?"OK":"À VOIR"}</span><span>${esc(c[1])}${c[0]?"":`<br><span class="muted">${esc(c[2])}</span>`}</span></li>`).join("")}</ul>`}
+function vHooks(){
+  const cats=["Tous","Favoris",...new Set(HOOKS.map(h=>h[0]))],q=ui.hookQ.toLowerCase();
+  const items=HOOKS.map((h,i)=>({h,i})).filter(o=>(ui.hookCat==="Tous"||(ui.hookCat==="Favoris"?S.hookFavs.includes(o.i):o.h[0]===ui.hookCat))&&(!q||o.h[1].toLowerCase().includes(q)));
+  const c=cur();
+  return `<div class="stack-lg"><div class="head"><h1>Accroches</h1><p class="muted">${HOOKS.length} structures qui marchent à l’oral, à adapter à ton vécu. Choisis-en une, puis garde seulement ce qui est vrai pour toi.</p></div>
+  <div class="stack"><div class="chips">${cats.map(x=>`<button class="chip" data-act="hookcat" data-v="${x}" aria-pressed="${ui.hookCat===x}">${x}</button>`).join("")}</div>
+  <input type="search" id="hookQ" data-model="hookQ" value="${esc(ui.hookQ)}" placeholder="Chercher un mot : défi, matin, lundi…" aria-label="Chercher une accroche"></div>
+  ${busyHTML()}${errHTML()}
+  ${items.length?`<div class="grid">${items.map(({h,i})=>`<article class="card"><div class="row between"><span class="tag">${esc(h[0])}</span>
+    <button class="btn small quiet" data-act="fav" data-i="${i}" aria-pressed="${S.hookFavs.includes(i)}">${S.hookFavs.includes(i)?"Favori":"Mettre en favori"}</button></div>
+    <p style="font-weight:600;font-size:18px;line-height:1.3">${esc(fillHook(h[1]))}</p>
+    ${(ui.adapted[i]||[]).map(a=>`<div class="row between" style="border-top:1px solid var(--line);padding-top:8px"><span>${esc(a)}</span>${c?`<button class="btn small quiet" data-act="use-hook" data-t="${esc(a)}">Utiliser</button>`:""}</div>`).join("")}
+    <div class="row"><button class="btn small" data-act="adapt" data-i="${i}" ${ui.busy?"disabled":""}>Adapter à moi</button>${c?`<button class="btn small quiet" data-act="use-hook" data-t="${esc(fillHook(h[1]))}">Mettre dans ma vidéo</button>`:""}</div></article>`).join("")}</div>`:`<p class="muted">Aucune accroche ne correspond. Essaie un autre mot${ui.hookCat==="Favoris"?" ou ajoute des favoris":""}.</p>`}
+  </div>`;
+}
+function vVideos(){
+  const L={script:"Script prêt",tourne:"Tournée",publie:"Publiée",bilan:"Bilan fait"};
+  return `<div class="stack-lg"><div class="head"><h1>Mes vidéos</h1><p class="muted">Tes scripts et tes bilans. Attends 48 heures après la publication pour noter tes chiffres.</p></div>
+  ${busyHTML()}${errHTML()}
+  ${S.videos.length?`<div class="stack">${S.videos.map(v=>{
+    const m=v.metrics||{},pct=m.watch&&v.duration?Math.round(m.watch/v.duration*100):null,per=m.views&&m.shares?((+m.shares/+m.views)*1000).toFixed(1):null;
+    return `<article class="card"><div class="row between"><h3>${esc(v.idea.title)}</h3><span class="tag ${v.status==="bilan"?"ok":"a"}">${L[v.status]||v.status}</span></div>
+    <div class="row"><button class="btn small" data-act="open" data-id="${v.id}">Ouvrir le script</button>
+      ${v.status==="script"?`<button class="btn small quiet" data-act="filmed" data-id="${v.id}">J’ai tourné</button>`:""}
+      ${v.status==="tourne"?`<button class="btn small quiet" data-act="published" data-id="${v.id}">Je l’ai publiée</button>`:""}
+      <button class="btn small quiet" data-act="del" data-id="${v.id}">${ui.confirmDel===v.id?"Confirmer la suppression":"Supprimer"}</button></div>
+    ${v.status==="publie"||v.status==="bilan"?`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+      ${[["views","Vues"],["watch","Temps moyen regardé (s)"],["shares","Partages"],["saves","Enregistrements"]].map(f=>`<label class="f small" for="m-${f[0]}-${v.id}">${f[1]}<input type="number" min="0" id="m-${f[0]}-${v.id}" data-metric="${f[0]}" data-id="${v.id}" value="${esc(m[f[0]]??"")}"></label>`).join("")}</div>
+      <label class="f small" for="m-note-${v.id}">Ton ressenti<input type="text" id="m-note-${v.id}" data-metric="note" data-id="${v.id}" value="${esc(m.note||"")}" placeholder="Ce que disent les commentaires, ce que tu changerais…"></label>
+      ${pct!==null||per!==null?`<p class="small muted mono">${pct!==null?pct+" % de la vidéo regardée":""}${pct!==null&&per!==null?" · ":""}${per!==null?per+" partages pour 1 000 vues":""}</p>`:""}
+      ${v.lesson?`<div class="notice"><b>Leçon :</b> ${esc(v.lesson)}${v.nextTest?`<br><b>Prochain test :</b> ${esc(v.nextTest)}`:""}</div>`:""}
+      <div class="row"><button class="btn small primary" data-act="analyse" data-id="${v.id}" ${ui.busy?"disabled":""}>${v.lesson?"Mettre à jour le bilan":"Enregistrer le bilan"}</button></div>`:""}
+    </article>`}).join("")}</div>`:`<div class="stack"><p class="muted">Aucune vidéo pour l’instant.</p><div class="row"><button class="btn primary" data-go="idees">Trouver un concept</button></div></div>`}
+  </div>`;
+}
+function fieldHTML(f){
+  const p=S.profile,v=p[f.k]||"";
+  if(f.type==="text")return `<input type="text" id="p-${f.k}" data-profile="${f.k}" value="${esc(v)}" placeholder="${esc(f.ph||"")}" aria-label="${esc(f.q)}">`;
+  if(f.type==="area")return `<textarea id="p-${f.k}" data-profile="${f.k}" rows="5" placeholder="${esc(f.ph||"")}" aria-label="${esc(f.q)}">${esc(v)}</textarea>`;
+  if(f.type==="num")return `<div class="stack"><input type="number" min="1" max="21" id="p-${f.k}" data-profile="${f.k}" value="${esc(v)}" placeholder="${esc(f.ph||"")}" aria-label="${esc(f.q)}">
+    <div><div class="small" style="font-weight:600;margin-bottom:6px">Durée de vidéo que tu préfères</div><div class="chips">${[30,45,60,90].map(d=>`<button class="chip" data-act="pdur" data-d="${d}" aria-pressed="${(p.duration||45)===d}">${d} s</button>`).join("")}</div></div></div>`;
+  if(f.type==="chips")return `<div class="chips">${f.opts.map(o=>`<button class="chip" data-act="pchip" data-k="${f.k}" data-v="${esc(o)}" aria-pressed="${v===o}">${esc(o)}</button>`).join("")}</div>`;
+  if(f.type==="challenge"){const c=p.challenge||{};return `<div class="stack"><input type="text" id="c-name" data-ch="name" value="${esc(c.name)}" placeholder="Ex. : 75 jours sans excuses" aria-label="Nom du défi">
+    <div class="row" style="flex-wrap:nowrap"><label class="f small" for="c-day" style="flex:1">Jour actuel<input type="number" min="0" id="c-day" data-ch="day" value="${esc(c.day)}"></label><label class="f small" for="c-total" style="flex:1">Nombre de jours<input type="number" min="0" id="c-total" data-ch="total" value="${esc(c.total)}"></label></div></div>`}
+  return "";
+}
+function vProfil(){
+  if(ui.wizard!==null){
+    const f=FIELDS[ui.wizard],n=FIELDS.length,last=ui.wizard===n-1;
+    return `<div class="wizard"><div class="progress" role="progressbar" aria-valuenow="${ui.wizard+1}" aria-valuemin="1" aria-valuemax="${n}" aria-label="Question ${ui.wizard+1} sur ${n}"><i style="width:${(ui.wizard+1)/n*100}%"></i></div>
+    <span class="tag mono">Question ${ui.wizard+1}/${n}</span>
+    <h1 style="font-size:clamp(36px,7vw,56px)">${esc(f.q)}</h1><p class="muted">${esc(f.why)}</p>
+    ${fieldHTML(f)}
+    <div class="row between"><button class="btn quiet" data-act="wback" ${ui.wizard?"":"disabled"}>Retour</button>
+    <div class="row">${f.req?"":`<button class="btn quiet" data-act="wnext">Passer</button>`}<button class="btn primary" data-act="wnext" data-need="${f.req?1:""}" data-k="${f.k}">${last?"Terminer":"Suivant"}</button></div></div>
+    ${ui.wizError?`<div class="notice warn" role="alert">${esc(ui.wizError)}</div>`:""}</div>`;
   }
-  deadlines.sort((a, b) => a.date.localeCompare(b.date));
-  const topDeadlines = deadlines.slice(0, 5);
-
-  const stats = [
-    { label: "Tâches aujourd'hui", value: todayDone + " / " + todayTasks.length, icon: Sun },
-    { label: "Terminées cette semaine", value: weekDone, icon: CheckSquare },
-    { label: "Taux de complétion", value: rate + "%", icon: TrendingUp },
-    { label: "Objectifs actifs", value: activeGoals, icon: Target },
-  ];
-
-  return (
-    <div className="view">
-      <h1 className="view-title">Vue d'ensemble</h1>
-      <div className="ov-stats">
-        {stats.map((s) => {
-          const Icon = s.icon;
-          return (
-            <div key={s.label} className="stat-card glass hoverable">
-              <div className="stat-icon"><Icon size={18} strokeWidth={1.8} /></div>
-              <span className="stat-value">{s.value}</span>
-              <span className="stat-label">{s.label}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="ov-cols">
-        <div className="ov-panel glass">
-          <span className="panel-title">Cette semaine</span>
-          <div className="bars">
-            {perDay.map((d, i) => {
-              const h = Math.round((d.total / maxTotal) * 100);
-              const fill = d.total ? Math.round((d.done / d.total) * 100) : 0;
-              return (
-                <div key={d.iso} className="bar-col">
-                  <div className="bar-track" style={{ height: "120px" }}>
-                    <div className="bar-total" style={{ height: Math.max(d.total ? 6 : 0, h) + "%" }}>
-                      <div className="bar-fill" style={{ height: fill + "%" }} />
-                    </div>
-                  </div>
-                  <span className={"bar-label" + (d.iso === ti ? " now" : "")}>{WEEKDAYS[i]}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="ov-panel glass">
-          <span className="panel-title">Prochaines échéances</span>
-          {topDeadlines.length === 0
-            ? <Empty icon={CalendarClock} title="Rien à l'horizon" sub="Tes échéances apparaîtront ici." />
-            : <div className="deadlines">
-                {topDeadlines.map((d) => {
-                  const dt = new Date(d.date + "T00:00:00");
-                  const left = daysUntil(d.date);
-                  return (
-                    <div key={d.id} className="deadline">
-                      <div className="dl-date">
-                        <span className="dl-day">{dt.getDate()}</span>
-                        <span className="dl-mon">{MONTHS[dt.getMonth()].slice(0, 3)}</span>
-                      </div>
-                      <div className="dl-text">
-                        <span className="dl-title">{d.title}</span>
-                        <span className="dl-kind">{d.kind}</span>
-                      </div>
-                      <span className="dl-left">{left === 0 ? "auj." : left + " j"}</span>
-                    </div>
-                  );
-                })}
-              </div>}
-        </div>
-      </div>
-    </div>
-  );
+  const st=S.strategy;
+  return `<div class="stack-lg"><div class="head"><h1>Profil</h1><p class="muted">Plus c’est précis, plus tes concepts et tes scripts te ressemblent. Personne d’autre ne les voit dans l’appli.</p></div>
+  ${busyHTML()}${errHTML()}
+  <section class="stack"><div class="row between"><h2>Ma ligne</h2>${profileReady()?`<button class="btn small" data-act="strategy" ${ui.busy?"disabled":""}>${st?"Recalculer":"Définir ma ligne"}</button>`:""}</div>
+  ${st?`${modelNote(st)}<div class="card"><p style="font-size:19px;font-weight:600;line-height:1.35">${esc(st.positioning)}</p><p class="muted">${esc(st.promise||"")}</p></div>
+  <div class="grid">${st.pillars.map(x=>`<div class="pillar"><h3>${esc(x.name)}</h3><p class="small">${esc(x.why)}</p><p class="small muted">Ex. : ${esc(x.example)}</p></div>`).join("")}</div>
+  <div class="grid">${st.series?`<div class="card"><span class="tag a">Série</span><h3>${esc(st.series.name)}</h3><p class="small">${esc(st.series.concept)}</p></div>`:""}
+  <div class="card"><span class="tag">À éviter</span><ul style="margin:0;padding-left:18px" class="small">${(st.avoid||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div></div>`:`<p class="muted">Ta ligne apparaîtra ici une fois ton profil rempli.</p>`}</section>
+  <section class="stack"><div class="row between"><h2>Mes réponses</h2><button class="btn small" data-act="wizard">Répondre une à une</button></div>
+  <div><div class="small" style="font-weight:600;margin-bottom:6px">Mes thèmes</div><div class="chips">${THEMES.map(t=>`<button class="chip" data-act="theme" data-v="${t}" aria-pressed="${(S.profile.themes||[]).includes(t)}">${t}</button>`).join("")}</div></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr))">${FIELDS.map(f=>`<div class="card"><div style="font-weight:700">${esc(f.q)}</div>${fieldHTML(f)}</div>`).join("")}</div></section></div>`;
 }
 
-/* ----------------------------------------------------------------------- */
-/* Modales                                                                 */
-/* ----------------------------------------------------------------------- */
-
-function TaskModal({ initial, goals, onSave, onDelete, onClose }) {
-  const editing = !!initial.id;
-  const [title, setTitle] = useState(initial.title || "");
-  const [date, setDate] = useState(initial.date || "");
-  const [time, setTime] = useState(initial.time || "");
-  const [priority, setPriority] = useState(initial.priority || "medium");
-  const [category, setCategory] = useState(initial.category || "");
-  const [goalId, setGoalId] = useState(initial.goalId || "");
-  const [notes, setNotes] = useState(initial.notes || "");
-
-  const save = () => {
-    const t = title.trim();
-    if (!t) return;
-    onSave({
-      ...initial,
-      title: t,
-      date: date || null,
-      time: time || null,
-      priority,
-      category: category.trim() || "Général",
-      goalId: goalId || null,
-      notes: notes.trim(),
-    });
+/* ---------- Prompteur ---------- */
+let pState=null;
+function openPrompter(v){
+  const paras=v.sections.map(s=>`<p>${esc(s.text).replace(/\[[^\]]+\]/g,m=>`<mark>${m}</mark>`)}</p>`).join("");
+  $("#overlay").innerHTML=`<div class="prompter" role="dialog" aria-label="Prompteur"><div class="p-bar">
+   <button class="go" id="p-play">Lancer</button><button id="p-reset">Revenir au début</button>
+   <label for="p-speed">Vitesse <input type="range" id="p-speed" min="110" max="200" value="155"><span class="mono" id="p-wpm">155 mots/min</span></label>
+   <label for="p-size">Taille <input type="range" id="p-size" min="26" max="72" value="${innerWidth<600?36:52}"></label>
+   <button id="p-close" style="margin-left:auto">Fermer</button></div>
+   <div style="position:relative;flex:1;display:flex;min-height:0"><div class="p-text" id="p-text" style="font-size:${innerWidth<600?36:52}px">${paras}</div><div class="p-line"></div></div></div>`;
+  const box=$("#p-text"),total=words(v.sections.map(s=>s.text).join(" "));
+  pState={playing:false,last:0,wpm:155,acc:0};
+  const tick=t=>{
+    if(!pState||!pState.playing)return;
+    const dt=(t-pState.last)/1000;pState.last=t;
+    const dist=Math.max(1,box.scrollHeight-innerHeight*.98),rate=dist/(total/(pState.wpm/60));
+    pState.acc=Math.min(pState.acc+rate*dt,box.scrollHeight);box.scrollTop=pState.acc;
+    if(box.scrollTop+box.clientHeight>=box.scrollHeight-2){pState.playing=false;$("#p-play").textContent="Lancer";return}
+    requestAnimationFrame(tick);
   };
-
-  return (
-    <Overlay onClose={onClose}>
-      <div className="modal-head">
-        <h2>{editing ? "Modifier la tâche" : "Nouvelle tâche"}</h2>
-        <button className="iconbtn ghosty" onClick={onClose} aria-label="Fermer"><X size={18} /></button>
-      </div>
-      <div className="modal-body">
-        <label className="field">
-          <span className="field-cap">Titre</span>
-          <input
-            className="input" value={title} autoFocus placeholder="Que faut-il faire ?"
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") save(); }}
-          />
-        </label>
-        <div className="field-row">
-          <label className="field">
-            <span className="field-cap">Date</span>
-            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </label>
-          <label className="field">
-            <span className="field-cap">Heure</span>
-            <input className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-          </label>
-        </div>
-        <div className="field">
-          <span className="field-cap">Priorité</span>
-          <div className="seg">
-            {[["high", "Haute"], ["medium", "Moyenne"], ["low", "Basse"]].map(([v, l]) => (
-              <button key={v} className={"seg-btn" + (priority === v ? " on" : "")} onClick={() => setPriority(v)}>
-                <span className={"pdot pdot-" + v} /> {l}
-              </button>
-            ))}
-          </div>
-        </div>
-        <label className="field">
-          <span className="field-cap">Catégorie</span>
-          <input className="input" value={category} placeholder="Travail, Perso, Sport…" onChange={(e) => setCategory(e.target.value)} />
-        </label>
-        {goals.length > 0 && (
-          <label className="field">
-            <span className="field-cap">Objectif lié</span>
-            <select className="input" value={goalId} onChange={(e) => setGoalId(e.target.value)}>
-              <option value="">Aucun</option>
-              {goals.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
-            </select>
-          </label>
-        )}
-        <label className="field">
-          <span className="field-cap">Notes</span>
-          <textarea className="input area" value={notes} rows={3} placeholder="Détails, liens, contexte…" onChange={(e) => setNotes(e.target.value)} />
-        </label>
-      </div>
-      <div className="modal-foot">
-        {editing
-          ? <button className="btn btn-danger" onClick={() => onDelete(initial.id)}><Trash2 size={15} strokeWidth={1.8} /> Supprimer</button>
-          : <span />}
-        <div className="foot-right">
-          <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
-          <button className="btn" onClick={save}>{editing ? "Enregistrer" : "Créer"}</button>
-        </div>
-      </div>
-    </Overlay>
-  );
+  $("#p-play").onclick=()=>{pState.playing=!pState.playing;$("#p-play").textContent=pState.playing?"Pause":"Lancer";if(pState.playing){pState.acc=box.scrollTop;pState.last=performance.now();requestAnimationFrame(tick)}};
+  $("#p-reset").onclick=()=>{box.scrollTop=0;pState.acc=0};
+  $("#p-speed").oninput=e=>{pState.wpm=+e.target.value;$("#p-wpm").textContent=pState.wpm+" mots/min"};
+  $("#p-size").oninput=e=>{box.style.fontSize=e.target.value+"px"};
+  $("#p-close").onclick=closePrompter;
+  $("#p-play").focus();
 }
+function closePrompter(){pState=null;$("#overlay").innerHTML=""}
 
-function GoalModal({ initial, onSave, onDelete, onClose }) {
-  const editing = !!initial.id;
-  const [title, setTitle] = useState(initial.title || "");
-  const [targetDate, setTargetDate] = useState(initial.targetDate || "");
-  const [description, setDescription] = useState(initial.description || "");
-  const [milestones, setMilestones] = useState(initial.milestones ? initial.milestones.map((m) => ({ ...m })) : []);
-  const [draft, setDraft] = useState("");
-
-  const addMs = () => {
-    const t = draft.trim();
-    if (!t) return;
-    setMilestones((ms) => [...ms, { id: uid(), title: t, done: false }]);
-    setDraft("");
+/* ---------- Événements ---------- */
+function startWizard(){ui.wizard=S.profile.name?Math.max(0,FIELDS.findIndex(f=>!S.profile[f.k])):0;if(ui.wizard<0)ui.wizard=0;ui.wizError=null;go("profil")}
+function refreshScriptLive(v){
+  let t=0;v.sections.forEach((s,i)=>{const e=document.querySelector(`[data-tc="${i}"]`);if(e)e.textContent=fmt(t);t+=secs(s.text)});
+  const b=$("#bigtime");if(b)b.textContent=fmt(t);
+  const c=$("#checkcard");if(c){const l=checks(v),ok=l.every(x=>x[0]);c.innerHTML=`<h3>Contrôle avant tournage</h3>${checkHTML(l)}<p class="small muted">${ok?"Tout est bon. Ce contrôle ne prédit pas les vues : il retire ce qui fait partir les gens.":"À corriger avant de tourner."}</p>`}
+}
+document.addEventListener("input",e=>{
+  const t=e.target,d=t.dataset;
+  if(d.model){ui[d.model]=t.value;if(d.model==="hookQ")render();return}
+  if(d.profile){S.profile[d.profile]=d.profile==="rhythm"?(+t.value||""):t.value;touch();return}
+  if(d.ch){S.profile.challenge=S.profile.challenge||{};S.profile.challenge[d.ch]=t.value;touch();return}
+  const v=S.videos.find(x=>x.id===ui.openVideo)||cur();
+  if(d.secText!==undefined&&v){v.sections[+d.secText].text=t.value;touch(v);refreshScriptLive(v);return}
+  if(d.vfield&&v){v[d.vfield]=t.value;touch(v);return}
+  if(d.metric){const x=S.videos.find(y=>y.id===d.id);if(x){x.metrics=x.metrics||{};x.metrics[d.metric]=t.value;touch(x)}}
+});
+document.addEventListener("change",e=>{
+  const h=e.target.dataset.hook;
+  if(h!==undefined){const v=S.videos.find(x=>x.id===ui.openVideo)||cur();if(v){v.hookIndex=+h;v.sections[0].text=v.hooks[+h];touch(v);render()}}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&pState)closePrompter()});
+document.addEventListener("click",async e=>{
+  const g=e.target.closest("[data-go]");
+  if(g){if(g.dataset.go==="script")ui.openVideo=null;go(g.dataset.go);return}
+  const b=e.target.closest("[data-act]");if(!b)return;
+  const d=b.dataset,a=d.act,vid=d.id,v=S.videos.find(x=>x.id===vid),cv=S.videos.find(x=>x.id===ui.openVideo)||cur(),idea=S.ideas.find(x=>x.id===vid);
+  const acts={
+   guide(){({wizard:startWizard,strategy:genStrategy,idees(){go("idees")},script(){ui.openVideo=null;go("script")},publish(){const c=cur();if(c){c.status="publie";c.publishedAt=Date.now();touch(c);go("videos")}},bilan(){go("videos")}})[d.a]()},
+   wizard:startWizard, strategy:genStrategy, ideas:genIdeas,
+   pillar(){ui.pillar=d.v;render()},
+   "save-idea"(){if(idea){idea.saved=!idea.saved;touch();render()}},
+   reject(){if(idea){S.rejected.push(idea.title);S.ideas=S.ideas.filter(x=>x!==idea);touch();render()}},
+   write(){if(idea)genScript(idea)},
+   "own-subject"(){const t=(ui.subject||"").trim();if(!t){ui.error="Écris ton sujet en quelques mots.";render();return}ui.subject="";genScript({id:id(),title:t,angle:"",hook:"",stay:"",sendTo:"quelqu’un que ce sujet touche"})},
+   duration(){if(cv){cv.duration=+d.d;touch(cv);render()}},
+   regen(){if(cv)genScript(cv.idea,cv.duration)},
+   rewrite(){if(cv)rewrite(cv,+d.i,d.how)},
+   prompter(){if(cv)openPrompter(cv)},
+   async copy(){if(!cv)return;const txt=cv.sections.map(s=>s.text).join("\n\n");try{await navigator.clipboard.writeText(txt);b.textContent="Script copié"}catch(x){b.textContent="Copie refusée : sélectionne le texte"}setTimeout(()=>{b.textContent="Copier le script"},1800)},
+   filmed(){if(v){v.status="tourne";touch(v);render()}},
+   published(){if(v){v.status="publie";v.publishedAt=Date.now();touch(v);go("videos")}},
+   open(){ui.openVideo=vid;go("script")},
+   del(){if(ui.confirmDel!==vid){ui.confirmDel=vid;render();return}S.videos=S.videos.filter(x=>x.id!==vid);if(S.currentId===vid)S.currentId=null;ui.confirmDel=null;dirtyVideos.add(vid);touch();render()},
+   analyse(){if(v)analyse(v)},
+   hookcat(){ui.hookCat=d.v;render()},
+   fav(){const i=+d.i,f=S.hookFavs;const p=f.indexOf(i);if(p<0)f.push(i);else f.splice(p,1);touch();render()},
+   adapt(){adaptHook(+d.i)},
+   "use-hook"(){const c=cur();if(c){c.sections[0].text=d.t;c.hooks=[d.t,...(c.hooks||[]).filter(x=>x!==d.t)].slice(0,3);c.hookIndex=0;touch(c);ui.openVideo=null;go("script")}},
+   theme(){const t=S.profile.themes=S.profile.themes||[];const p=t.indexOf(d.v);if(p<0)t.push(d.v);else t.splice(p,1);touch();render()},
+   pchip(){S.profile[d.k]=S.profile[d.k]===d.v?"":d.v;touch();render()},
+   pdur(){S.profile.duration=+d.d;touch();render()},
+   wback(){if(ui.wizard>0){ui.wizard--;ui.wizError=null;render()}},
+   wnext(){
+     if(d.need&&!String(S.profile[d.k]||"").trim()){ui.wizError="Cette réponse me sert pour tout le reste. Quelques mots suffisent.";render();return}
+     ui.wizError=null;
+     if(ui.wizard<FIELDS.length-1){ui.wizard++;render();window.scrollTo(0,0)}else{ui.wizard=null;go("today")}
+   }
   };
-  const removeMs = (id) => setMilestones((ms) => ms.filter((m) => m.id !== id));
-
-  const save = () => {
-    const t = title.trim();
-    if (!t) return;
-    onSave({ ...initial, title: t, targetDate: targetDate || null, description: description.trim(), milestones });
-  };
-
-  return (
-    <Overlay onClose={onClose}>
-      <div className="modal-head">
-        <h2>{editing ? "Modifier l'objectif" : "Nouvel objectif"}</h2>
-        <button className="iconbtn ghosty" onClick={onClose} aria-label="Fermer"><X size={18} /></button>
-      </div>
-      <div className="modal-body">
-        <label className="field">
-          <span className="field-cap">Titre</span>
-          <input className="input" value={title} autoFocus placeholder="Quel est ton objectif ?" onChange={(e) => setTitle(e.target.value)} />
-        </label>
-        <label className="field">
-          <span className="field-cap">Date cible</span>
-          <input className="input" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-        </label>
-        <label className="field">
-          <span className="field-cap">Description</span>
-          <textarea className="input area" value={description} rows={2} placeholder="Pourquoi cet objectif compte…" onChange={(e) => setDescription(e.target.value)} />
-        </label>
-        <div className="field">
-          <span className="field-cap">Étapes</span>
-          {milestones.length > 0 && (
-            <div className="ms-edit">
-              {milestones.map((m) => (
-                <div key={m.id} className="ms-edit-row">
-                  <span className="ms-bullet" />
-                  <span className="ms-edit-title">{m.title}</span>
-                  <button className="iconbtn ghosty" onClick={() => removeMs(m.id)} aria-label="Retirer"><X size={14} /></button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="add-ms">
-            <input
-              className="input" value={draft} placeholder="Ajouter une étape…"
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addMs(); } }}
-            />
-            <button className="btn btn-ghost btn-sm" onClick={addMs}>Ajouter</button>
-          </div>
-        </div>
-      </div>
-      <div className="modal-foot">
-        {editing
-          ? <button className="btn btn-danger" onClick={() => onDelete(initial.id)}><Trash2 size={15} strokeWidth={1.8} /> Supprimer</button>
-          : <span />}
-        <div className="foot-right">
-          <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
-          <button className="btn" onClick={save}>{editing ? "Enregistrer" : "Créer"}</button>
-        </div>
-      </div>
-    </Overlay>
-  );
-}
-
-function DayModal({ iso, tasks, onToggle, onEditTask, onQuickAdd, onClose }) {
-  const list = tasks.filter((t) => t.date === iso).sort(byTime);
-  return (
-    <Overlay onClose={onClose}>
-      <div className="modal-head">
-        <h2>{formatLong(iso)}</h2>
-        <button className="iconbtn ghosty" onClick={onClose} aria-label="Fermer"><X size={18} /></button>
-      </div>
-      <div className="modal-body">
-        <QuickAdd onAdd={(t) => onQuickAdd(iso, t)} placeholder="Ajouter une tâche ce jour…" />
-        {list.length === 0
-          ? <Empty icon={Calendar} title="Journée libre" sub="Aucune tâche pour cette date." />
-          : <div className="day-list">
-              {list.map((t) => <TaskRow key={t.id} task={t} onToggle={onToggle} onEdit={onEditTask} />)}
-            </div>}
-      </div>
-      <div className="modal-foot">
-        <span />
-        <div className="foot-right">
-          <button className="btn btn-ghost" onClick={onClose}>Fermer</button>
-        </div>
-      </div>
-    </Overlay>
-  );
-}
-
-/* ----------------------------------------------------------------------- */
-/* Données d'exemple (premier lancement)                                   */
-/* ----------------------------------------------------------------------- */
-
-function seed() {
-  const ti = todayISO();
-  const gSport = uid();
-  const gLang = uid();
-  const now = Date.now();
-  const goals = [
-    {
-      id: gSport,
-      title: "Courir un semi-marathon",
-      targetDate: addDays(ti, 70),
-      description: "Préparer et terminer 21 km au printemps.",
-      milestones: [
-        { id: uid(), title: "Courir 5 km sans pause", done: true },
-        { id: uid(), title: "Atteindre 10 km", done: false },
-        { id: uid(), title: "Sortie longue de 15 km", done: false },
-      ],
-      createdAt: now,
-    },
-    {
-      id: gLang,
-      title: "Parler espagnol couramment",
-      targetDate: addDays(ti, 180),
-      description: "Tenir une conversation de 20 minutes sans bloquer.",
-      milestones: [
-        { id: uid(), title: "Réviser les bases", done: true },
-        { id: uid(), title: "500 mots de vocabulaire", done: false },
-      ],
-      createdAt: now,
-    },
-  ];
-  const tasks = [
-    { id: uid(), title: "Séance course — 5 km", date: ti, time: "07:30", priority: "medium", category: "Sport", done: false, goalId: gSport, notes: "", createdAt: now },
-    { id: uid(), title: "Préparer la réunion d'équipe", date: ti, time: "10:00", priority: "high", category: "Travail", done: false, goalId: null, notes: "", createdAt: now },
-    { id: uid(), title: "Répondre aux mails en attente", date: ti, time: "", priority: "low", category: "Travail", done: true, goalId: null, notes: "", createdAt: now },
-    { id: uid(), title: "Leçon d'espagnol", date: addDays(ti, 1), time: "18:30", priority: "medium", category: "Perso", done: false, goalId: gLang, notes: "", createdAt: now },
-    { id: uid(), title: "Courses de la semaine", date: addDays(ti, 2), time: "", priority: "low", category: "Perso", done: false, goalId: null, notes: "", createdAt: now },
-    { id: uid(), title: "Rendez-vous dentiste", date: addDays(ti, 5), time: "14:00", priority: "high", category: "Santé", done: false, goalId: null, notes: "", createdAt: now },
-    { id: uid(), title: "Bilan hebdomadaire", date: addDays(ti, -2), time: "", priority: "medium", category: "Travail", done: false, goalId: null, notes: "", createdAt: now },
-  ];
-  return { tasks, goals };
-}
-
-/* ----------------------------------------------------------------------- */
-/* Application                                                             */
-/* ----------------------------------------------------------------------- */
-
-export default function App() {
-  const now = new Date();
-  const [view, setView] = useState("calendar");
-  const [calYear, setCalYear] = useState(now.getFullYear());
-  const [calMonth, setCalMonth] = useState(now.getMonth());
-  const [tasks, setTasks] = useState([]);
-  const [goals, setGoals] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-  const [taskModal, setTaskModal] = useState(null);
-  const [goalModal, setGoalModal] = useState(null);
-  const [dayModal, setDayModal] = useState(null);
-
-  // Police Montserrat (injection défensive)
-  useEffect(() => {
-    if (!document.getElementById("orbit-font")) {
-      const l = document.createElement("link");
-      l.id = "orbit-font";
-      l.rel = "stylesheet";
-      l.href = "https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap";
-      document.head.appendChild(l);
-    }
-  }, []);
-
-  // Chargement depuis le stockage persistant
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      let t = null, g = null;
-      try { const r = await window.storage.get("orbit:tasks"); t = r ? JSON.parse(r.value) : null; } catch (e) {}
-      try { const r = await window.storage.get("orbit:goals"); g = r ? JSON.parse(r.value) : null; } catch (e) {}
-      if (cancelled) return;
-      if (!t) {
-        const s = seed();
-        setTasks(s.tasks);
-        setGoals(s.goals);
-      } else {
-        setTasks(t);
-        setGoals(g || []);
-      }
-      setLoaded(true);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Sauvegarde
-  useEffect(() => {
-    if (!loaded) return;
-    (async () => { try { await window.storage.set("orbit:tasks", JSON.stringify(tasks)); } catch (e) {} })();
-  }, [tasks, loaded]);
-  useEffect(() => {
-    if (!loaded) return;
-    (async () => { try { await window.storage.set("orbit:goals", JSON.stringify(goals)); } catch (e) {} })();
-  }, [goals, loaded]);
-
-  // Opérations tâches
-  const saveTask = (task) => {
-    setTasks((prev) => {
-      const exists = prev.some((t) => t.id === task.id);
-      if (exists) return prev.map((t) => (t.id === task.id ? task : t));
-      return [...prev, { ...task, id: task.id || uid(), createdAt: Date.now() }];
-    });
-    setTaskModal(null);
-  };
-  const deleteTask = (id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); setTaskModal(null); };
-  const toggleTask = (id) => setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-  const quickAddToday = (title) =>
-    setTasks((prev) => [...prev, { id: uid(), title, date: todayISO(), time: null, priority: "medium", category: "Général", done: false, goalId: null, notes: "", createdAt: Date.now() }]);
-  const quickAddDate = (iso, title) =>
-    setTasks((prev) => [...prev, { id: uid(), title, date: iso, time: null, priority: "medium", category: "Général", done: false, goalId: null, notes: "", createdAt: Date.now() }]);
-
-  // Opérations objectifs
-  const saveGoal = (goal) => {
-    setGoals((prev) => {
-      const exists = prev.some((g) => g.id === goal.id);
-      if (exists) return prev.map((g) => (g.id === goal.id ? goal : g));
-      return [...prev, { ...goal, id: goal.id || uid(), createdAt: Date.now() }];
-    });
-    setGoalModal(null);
-  };
-  const deleteGoal = (id) => {
-    setGoals((prev) => prev.filter((g) => g.id !== id));
-    setTasks((prev) => prev.map((t) => (t.goalId === id ? { ...t, goalId: null } : t)));
-    setGoalModal(null);
-  };
-  const toggleMilestone = (goalId, msId) =>
-    setGoals((prev) => prev.map((g) =>
-      g.id === goalId ? { ...g, milestones: (g.milestones || []).map((m) => (m.id === msId ? { ...m, done: !m.done } : m)) } : g));
-
-  // Navigation calendrier
-  const prevMonth = () => setCalMonth((m) => { if (m === 0) { setCalYear((y) => y - 1); return 11; } return m - 1; });
-  const nextMonth = () => setCalMonth((m) => { if (m === 11) { setCalYear((y) => y + 1); return 0; } return m + 1; });
-  const goToday = () => { const d = new Date(); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); };
-
-  const badges = {
-    today: tasks.filter((t) => t.date === todayISO() && !t.done).length || null,
-    tasks: tasks.filter((t) => !t.done).length || null,
-    goals: goals.length || null,
-  };
-
-  return (
-    <div className="planner-root">
-      <style>{CSS}</style>
-      <Sidebar view={view} setView={setView} badges={badges} />
-      <main className="main">
-        {view === "today" && (
-          <TodayView tasks={tasks} onToggle={toggleTask} onEdit={(t) => setTaskModal({ initial: t })} onQuickAdd={quickAddToday} />
-        )}
-        {view === "calendar" && (
-          <CalendarView year={calYear} month={calMonth} tasks={tasks} onPrev={prevMonth} onNext={nextMonth} onToday={goToday} onDay={(iso) => setDayModal(iso)} />
-        )}
-        {view === "tasks" && (
-          <TasksView tasks={tasks} onToggle={toggleTask} onEdit={(t) => setTaskModal({ initial: t })} onNew={() => setTaskModal({ initial: {} })} />
-        )}
-        {view === "goals" && (
-          <GoalsView goals={goals} tasks={tasks} onToggleMilestone={toggleMilestone} onToggleTask={toggleTask} onEdit={(g) => setGoalModal({ initial: g })} onDelete={deleteGoal} onNew={() => setGoalModal({ initial: {} })} />
-        )}
-        {view === "overview" && <OverviewView tasks={tasks} goals={goals} />}
-      </main>
-
-      {taskModal && (
-        <TaskModal
-          key={taskModal.initial.id || "new"}
-          initial={taskModal.initial}
-          goals={goals}
-          onSave={saveTask}
-          onDelete={deleteTask}
-          onClose={() => setTaskModal(null)}
-        />
-      )}
-      {goalModal && (
-        <GoalModal
-          key={goalModal.initial.id || "new"}
-          initial={goalModal.initial}
-          onSave={saveGoal}
-          onDelete={deleteGoal}
-          onClose={() => setGoalModal(null)}
-        />
-      )}
-      {dayModal && (
-        <DayModal
-          iso={dayModal}
-          tasks={tasks}
-          onToggle={toggleTask}
-          onEditTask={(t) => { setDayModal(null); setTaskModal({ initial: t }); }}
-          onQuickAdd={quickAddDate}
-          onClose={() => setDayModal(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ----------------------------------------------------------------------- */
-/* Styles                                                                  */
-/* ----------------------------------------------------------------------- */
-
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
-
-* { box-sizing: border-box; }
-
-.planner-root {
-  --bz: cubic-bezier(0.25, 0.8, 0.25, 1);
-  font-family: 'Montserrat', system-ui, sans-serif;
-  display: flex;
-  min-height: 100vh;
-  color: #f2f2f2;
-  background-color: #050505;
-  background-image:
-    radial-gradient(620px circle at 12% 8%, rgba(255,255,255,0.06), transparent 60%),
-    radial-gradient(720px circle at 88% 100%, rgba(255,255,255,0.05), transparent 62%),
-    radial-gradient(540px circle at 78% 18%, rgba(255,255,255,0.035), transparent 60%);
-  -webkit-font-smoothing: antialiased;
-}
-
-.glass {
-  background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(18px) saturate(120%);
-  -webkit-backdrop-filter: blur(18px) saturate(120%);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 20px;
-  box-shadow: 0 24px 60px -28px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.05);
-}
-
-.hoverable { transition: transform .45s var(--bz), box-shadow .45s var(--bz), border-color .45s var(--bz); }
-.hoverable:hover {
-  transform: translateY(-4px);
-  border-color: rgba(255,255,255,0.22);
-  box-shadow: 0 32px 70px -26px rgba(0,0,0,0.9), 0 0 26px -6px rgba(255,255,255,0.16), inset 0 1px 0 rgba(255,255,255,0.08);
-}
-.hoverable:hover .nav-icon,
-.hoverable:hover .stat-icon { transform: scale(1.12); }
-
-button { font-family: inherit; cursor: pointer; }
-:focus-visible { outline: 2px solid rgba(255,255,255,0.55); outline-offset: 2px; }
-
-/* ---- Sidebar ---- */
-.sidebar {
-  width: 248px;
-  flex-shrink: 0;
-  margin: 18px;
-  padding: 22px 16px;
-  position: sticky;
-  top: 18px;
-  height: calc(100vh - 36px);
-  display: flex;
-  flex-direction: column;
-  gap: 26px;
-  border-radius: 24px;
-}
-.brand { display: flex; align-items: center; gap: 12px; padding: 6px 8px; }
-.brand-mark {
-  position: relative; width: 30px; height: 30px; border-radius: 50%;
-  border: 1.5px solid rgba(255,255,255,0.65); display: inline-block; flex-shrink: 0;
-}
-.brand-dot {
-  position: absolute; top: -2px; left: 50%; width: 6px; height: 6px; border-radius: 50%;
-  background: #fff; box-shadow: 0 0 10px rgba(255,255,255,0.9); transform: translateX(-50%);
-}
-.brand-text { display: flex; flex-direction: column; line-height: 1.1; }
-.brand-name { font-weight: 800; letter-spacing: 3px; font-size: 16px; }
-.brand-tag { font-size: 11px; color: rgba(255,255,255,0.42); letter-spacing: 0.5px; margin-top: 2px; }
-
-.nav { display: flex; flex-direction: column; gap: 4px; }
-.nav-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 11px 13px; border-radius: 13px; border: 1px solid transparent;
-  background: transparent; color: rgba(255,255,255,0.6); font-size: 14px; font-weight: 500;
-  transition: all .3s var(--bz); text-align: left; width: 100%;
-}
-.nav-icon { transition: transform .3s var(--bz); flex-shrink: 0; }
-.nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
-.nav-item:hover .nav-icon { transform: scale(1.12); }
-.nav-item.active {
-  color: #050505; background: #fff; font-weight: 600;
-  box-shadow: 0 10px 30px -12px rgba(255,255,255,0.4);
-}
-.nav-label { flex: 1; }
-.nav-badge {
-  font-size: 11px; font-weight: 700; min-width: 20px; height: 20px; padding: 0 6px;
-  border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85);
-}
-.nav-item.active .nav-badge { background: rgba(5,5,5,0.12); color: #050505; }
-
-/* ---- Main ---- */
-.main { flex: 1; min-width: 0; padding: 30px 34px 60px; }
-.view { max-width: 1060px; animation: fadeUp .5s var(--bz); }
-@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-.view-title { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; margin: 0 0 22px; }
-
-/* ---- Buttons ---- */
-.btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 10px 16px; border-radius: 12px; border: 1px solid transparent;
-  background: #fff; color: #050505; font-size: 13.5px; font-weight: 600;
-  transition: all .35s var(--bz);
-}
-.btn:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -12px rgba(255,255,255,0.4); }
-.btn-sm { padding: 8px 13px; font-size: 12.5px; }
-.btn-ghost {
-  background: rgba(255,255,255,0.05); color: #f2f2f2; border-color: rgba(255,255,255,0.12);
-}
-.btn-ghost:hover { background: rgba(255,255,255,0.1); box-shadow: none; }
-.btn-danger {
-  background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.75); border-color: rgba(255,255,255,0.14);
-}
-.btn-danger:hover { background: rgba(255,255,255,0.09); color: #fff; box-shadow: none; transform: translateY(-2px); }
-
-.iconbtn {
-  width: 38px; height: 38px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #e6e6e6;
-  transition: all .3s var(--bz);
-}
-.iconbtn:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
-.iconbtn.ghosty { width: 32px; height: 32px; border-radius: 9px; background: transparent; border-color: transparent; color: rgba(255,255,255,0.5); }
-.iconbtn.ghosty:hover { background: rgba(255,255,255,0.08); color: #fff; transform: none; }
-
-/* ---- QuickAdd ---- */
-.quickadd { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 16px; margin-bottom: 26px; }
-.qa-icon { color: rgba(255,255,255,0.45); flex-shrink: 0; }
-.qa-input { flex: 1; background: transparent; border: none; color: #fff; font-size: 14.5px; font-family: inherit; padding: 8px 0; }
-.qa-input::placeholder { color: rgba(255,255,255,0.35); }
-.qa-input:focus { outline: none; }
-
-/* ---- Priority dots ---- */
-.pdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
-.pdot-high { background: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.85); }
-.pdot-medium { background: rgba(255,255,255,0.55); }
-.pdot-low { background: transparent; border: 1.5px solid rgba(255,255,255,0.4); }
-
-/* ---- Calendar ---- */
-.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-.cal-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin: 0; text-transform: capitalize; }
-.cal-year { color: rgba(255,255,255,0.4); font-weight: 400; }
-.cal-nav { display: flex; align-items: center; gap: 8px; }
-
-.cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 10px; padding: 0 2px; }
-.cal-wd { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.38); text-align: left; padding-left: 4px; }
-
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
-.day-cell {
-  min-height: 116px; padding: 10px; border-radius: 16px; display: flex; flex-direction: column; gap: 7px;
-  text-align: left; align-items: stretch; background: rgba(255,255,255,0.025);
-}
-.day-cell.out { opacity: 0.4; }
-.day-num {
-  font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.7); width: 26px; height: 26px;
-  display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0;
-}
-.day-cell.today .day-num { background: #fff; color: #050505; font-weight: 700; }
-.day-chips { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
-.chip {
-  display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-radius: 8px;
-  background: rgba(255,255,255,0.07); font-size: 11.5px; line-height: 1.2;
-}
-.chip.done { opacity: 0.45; }
-.chip.done .chip-text { text-decoration: line-through; }
-.chip-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255,255,255,0.85); }
-.more { font-size: 10.5px; color: rgba(255,255,255,0.45); padding-left: 4px; font-weight: 500; }
-
-/* ---- Today hero ---- */
-.today-hero { margin-bottom: 24px; }
-.today-greet { font-size: 13px; color: rgba(255,255,255,0.45); letter-spacing: 0.5px; margin: 0 0 6px; font-weight: 500; }
-.today-date { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin: 0; text-transform: capitalize; }
-.today-count { font-size: 13.5px; color: rgba(255,255,255,0.5); margin: 8px 0 0; font-weight: 500; }
-
-/* ---- Sections ---- */
-.section { margin-bottom: 26px; }
-.section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.section-title { font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.55); }
-.section-count {
-  font-size: 11px; font-weight: 700; min-width: 19px; height: 19px; padding: 0 6px; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.7);
-}
-
-/* ---- Task rows ---- */
-.task-list, .day-list { display: flex; flex-direction: column; gap: 9px; }
-.section .task-row { margin-bottom: 9px; }
-.section .task-row:last-child { margin-bottom: 0; }
-.task-row { display: flex; align-items: center; gap: 13px; padding: 13px 15px; border-radius: 14px; }
-.check {
-  width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0; border: 1.5px solid rgba(255,255,255,0.3);
-  background: transparent; display: inline-flex; align-items: center; justify-content: center; color: #050505;
-  transition: all .25s var(--bz);
-}
-.check:hover { border-color: rgba(255,255,255,0.6); }
-.check.on { background: #fff; border-color: #fff; }
-.check.sm { width: 18px; height: 18px; border-radius: 6px; }
-.task-main { flex: 1; min-width: 0; }
-.task-line { display: flex; align-items: center; gap: 9px; }
-.task-title { font-size: 14.5px; font-weight: 500; color: #f2f2f2; }
-.task-title.struck, .ms-title.struck { text-decoration: line-through; color: rgba(255,255,255,0.4); }
-.task-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
-.meta-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: rgba(255,255,255,0.5); }
-.meta-tag {
-  font-size: 10.5px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 8px;
-  border-radius: 6px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6);
-}
-
-/* ---- Empty ---- */
-.empty {
-  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
-  padding: 46px 20px; color: rgba(255,255,255,0.35); border: 1px dashed rgba(255,255,255,0.1); border-radius: 18px;
-}
-.empty-title { font-size: 14.5px; font-weight: 600; color: rgba(255,255,255,0.6); margin: 6px 0 0; }
-.empty-sub { font-size: 13px; margin: 0; color: rgba(255,255,255,0.38); }
-
-/* ---- Tasks filters ---- */
-.tasks-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
-.filters { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip-btn {
-  padding: 8px 15px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 500;
-  transition: all .3s var(--bz);
-}
-.chip-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
-.chip-btn.on { background: #fff; color: #050505; border-color: #fff; font-weight: 600; }
-
-/* ---- Goals ---- */
-.goals-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
-.goals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
-.goal-card { padding: 20px; display: flex; flex-direction: column; gap: 13px; }
-.goal-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.goal-title { font-size: 16.5px; font-weight: 700; margin: 0 0 5px; letter-spacing: -0.2px; }
-.goal-due { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.5); }
-.goal-left { color: rgba(255,255,255,0.4); font-weight: 500; }
-.goal-actions { display: flex; gap: 2px; flex-shrink: 0; }
-.goal-desc { font-size: 13px; color: rgba(255,255,255,0.55); margin: 0; line-height: 1.5; }
-.goal-progress { display: flex; align-items: center; gap: 12px; }
-.goal-bar { flex: 1; height: 7px; border-radius: 999px; background: rgba(255,255,255,0.1); overflow: hidden; }
-.goal-bar-fill { display: block; height: 100%; border-radius: 999px; background: #fff; box-shadow: 0 0 10px rgba(255,255,255,0.4); transition: width .5s var(--bz); }
-.goal-pct { font-size: 12.5px; font-weight: 700; color: rgba(255,255,255,0.85); min-width: 34px; text-align: right; }
-.goal-toggle {
-  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; background: transparent; border: none;
-  color: rgba(255,255,255,0.55); font-size: 12.5px; font-weight: 600; padding: 2px 0; transition: color .25s var(--bz);
-}
-.goal-toggle:hover { color: #fff; }
-.goal-detail { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; }
-.ms-list, .linked { display: flex; flex-direction: column; gap: 4px; }
-.ms-row { display: flex; align-items: center; gap: 10px; background: transparent; border: none; padding: 5px 0; text-align: left; transition: opacity .2s var(--bz); }
-.ms-row:hover { opacity: 0.85; }
-.ms-title { font-size: 13.5px; color: rgba(255,255,255,0.82); }
-.linked-head { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 2px; }
-
-/* ---- Overview ---- */
-.ov-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
-.stat-card { padding: 18px; display: flex; flex-direction: column; gap: 4px; }
-.stat-icon { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,0.07); display: inline-flex; align-items: center; justify-content: center; color: #fff; margin-bottom: 8px; transition: transform .3s var(--bz); }
-.stat-value { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
-.stat-label { font-size: 12px; color: rgba(255,255,255,0.5); font-weight: 500; }
-
-.ov-cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
-.ov-panel { padding: 22px; }
-.panel-title { font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.5); display: block; margin-bottom: 22px; }
-.bars { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
-.bar-col { display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 1; }
-.bar-track { width: 100%; max-width: 34px; display: flex; align-items: flex-end; }
-.bar-total { width: 100%; background: rgba(255,255,255,0.1); border-radius: 7px; display: flex; align-items: flex-end; overflow: hidden; min-height: 4px; }
-.bar-fill { width: 100%; background: #fff; border-radius: 7px; box-shadow: 0 0 12px rgba(255,255,255,0.3); transition: height .5s var(--bz); }
-.bar-label { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 600; }
-.bar-label.now { color: #fff; }
-
-.deadlines { display: flex; flex-direction: column; gap: 12px; }
-.deadline { display: flex; align-items: center; gap: 14px; }
-.dl-date { width: 46px; height: 46px; border-radius: 12px; background: rgba(255,255,255,0.06); display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
-.dl-day { font-size: 16px; font-weight: 700; line-height: 1; }
-.dl-mon { font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.45); letter-spacing: 0.5px; margin-top: 2px; }
-.dl-text { flex: 1; min-width: 0; }
-.dl-title { font-size: 13.5px; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dl-kind { font-size: 11px; color: rgba(255,255,255,0.42); }
-.dl-left { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.55); flex-shrink: 0; }
-
-/* ---- Modals ---- */
-.overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 22px; background: rgba(0,0,0,0.62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: fadeIn .25s var(--bz); }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.modal { width: 100%; max-width: 480px; max-height: 88vh; display: flex; flex-direction: column; border-radius: 22px; animation: pop .3s var(--bz); }
-@keyframes pop { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: none; } }
-.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 14px; }
-.modal-head h2 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: -0.2px; }
-.modal-body { padding: 4px 22px 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-.modal-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 22px 20px; }
-.foot-right { display: flex; gap: 9px; margin-left: auto; }
-
-.field { display: flex; flex-direction: column; gap: 7px; }
-.field-row { display: flex; gap: 12px; }
-.field-row .field { flex: 1; }
-.field-cap { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.55); letter-spacing: 0.3px; }
-.input {
-  width: 100%; padding: 11px 13px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.04); color: #fff; font-size: 14px; font-family: inherit; color-scheme: dark;
-  transition: border-color .25s var(--bz), background .25s var(--bz);
-}
-.input:focus { outline: none; border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.07); }
-.input::placeholder { color: rgba(255,255,255,0.32); }
-.input.area { resize: vertical; min-height: 56px; line-height: 1.5; }
-select.input { appearance: none; cursor: pointer; }
-
-.seg { display: flex; gap: 8px; }
-.seg-btn {
-  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px;
-  border-radius: 11px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03);
-  color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 500; transition: all .25s var(--bz);
-}
-.seg-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
-.seg-btn.on { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.1); color: #fff; }
-
-.ms-edit { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
-.ms-edit-row { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: 10px; background: rgba(255,255,255,0.04); }
-.ms-bullet { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.45); flex-shrink: 0; }
-.ms-edit-title { flex: 1; font-size: 13.5px; color: rgba(255,255,255,0.85); }
-.add-ms { display: flex; gap: 8px; }
-.add-ms .input { flex: 1; }
-
-/* ---- Scrollbar ---- */
-::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
-
-/* ---- Responsive ---- */
-@media (max-width: 860px) {
-  .planner-root { flex-direction: column; }
-  .sidebar {
-    width: auto; height: auto; position: sticky; top: 0; margin: 12px; padding: 12px 14px;
-    flex-direction: row; align-items: center; gap: 14px; border-radius: 20px; z-index: 20;
-  }
-  .brand-text { display: none; }
-  .nav { flex-direction: row; gap: 4px; flex: 1; justify-content: space-around; }
-  .nav-item { flex-direction: column; gap: 3px; padding: 8px 10px; flex: 1; justify-content: center; }
-  .nav-label { display: none; }
-  .nav-badge { position: absolute; top: 2px; right: 8px; min-width: 16px; height: 16px; font-size: 9.5px; }
-  .nav-item { position: relative; }
-  .main { padding: 16px 16px 50px; }
-  .ov-cols { grid-template-columns: 1fr; }
-  .ov-stats { grid-template-columns: repeat(2, 1fr); }
-  .cal-grid, .cal-week { gap: 5px; }
-  .day-cell { min-height: 84px; padding: 6px; }
-  .chip-text { display: none; }
-  .chip { justify-content: center; padding: 4px; }
-  .field-row { flex-direction: column; }
-  .cal-title, .today-date { font-size: 22px; }
-}
-`;
+  if(acts[a])await acts[a]();
+});
+window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(VIEWS.some(v=>v[0]===h)&&h!==ui.view){ui.view=h;render()}});
+(function(){const h=location.hash.slice(1);if(VIEWS.some(v=>v[0]===h))ui.view=h})();
+render();
+setStatus("Sur cet appareil");
+connect();
+</script>
+</body>
+</html>
